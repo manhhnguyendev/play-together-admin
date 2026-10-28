@@ -1,36 +1,28 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, App, Card, Space, Switch, Tag, Typography } from 'antd'
+import { useQuery } from '@tanstack/react-query'
+import { Alert, Card, Space, Switch, Tag, Typography } from 'antd'
 import { adminService, configService } from '@/api/admin'
-import { toApiError } from '@/api/client'
+import { adminKeys, publicConfigKey } from '@/api/keys'
 import { PageHeader } from '@/components/PageHeader'
+import { QueryError } from '@/components/QueryError'
+import { useApiMutation } from '@/hooks/useApiMutation'
 
 export default function MaintenancePage() {
-  const { message } = App.useApp()
-  const queryClient = useQueryClient()
-
-  const query = useQuery({
-    queryKey: ['config', 'public'],
-    queryFn: configService.public,
-  })
+  const query = useQuery({ queryKey: publicConfigKey, queryFn: configService.public })
 
   const enabled = (query.data?.maintenanceMode ?? 0) > 0
 
-  const mutation = useMutation({
-    mutationFn: (next: boolean) => adminService.maintenance(next),
-    onSuccess: (result) => {
-      message.success(result.enabled ? 'Đã bật chế độ bảo trì' : 'Đã tắt chế độ bảo trì')
-      void queryClient.invalidateQueries({ queryKey: ['config', 'public'] })
-    },
-    onError: (error) => message.error(toApiError(error).message),
+  const mutation = useApiMutation({
+    mutationFn: (next: boolean) => adminService.maintenance({ enabled: next }),
+    successMessage: (result) =>
+      result.enabled ? 'Đã bật chế độ bảo trì' : 'Đã tắt chế độ bảo trì',
+    invalidate: [publicConfigKey, adminKeys.configs],
   })
 
   return (
     <>
       <PageHeader title="Chế độ bảo trì" description="Tạm khoá các thao tác đặt đơn khi hệ thống cần bảo trì" />
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Card style={{ maxWidth: 640 }} loading={query.isLoading}>
         <Space orientation="vertical" size={16} style={{ width: '100%' }}>

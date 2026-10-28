@@ -1,10 +1,11 @@
 import { ReloadOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
-import { Alert, Button, Card, Col, Row, Statistic, Table, Typography } from 'antd'
+import { Button, Card, Col, Row, Statistic, Table, Typography } from 'antd'
 import { adminService } from '@/api/admin'
-import { toApiError } from '@/api/client'
+import { adminKeys } from '@/api/keys'
 import type { PlatformOverview } from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
+import { QueryError } from '@/components/QueryError'
 import { StatusTag } from '@/components/StatusTag'
 import { formatMoney, formatNumber } from '@/lib/format'
 
@@ -12,7 +13,7 @@ type OrderRow = { status: string; count: number }
 
 export default function DashboardPage() {
   const query = useQuery({
-    queryKey: ['admin', 'stats'],
+    queryKey: adminKeys.stats,
     queryFn: adminService.stats,
     refetchInterval: 60_000,
   })
@@ -34,9 +35,7 @@ export default function DashboardPage() {
         }
       />
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Row gutter={[16, 16]}>
         <Col xs={24} md={12} xl={6}>

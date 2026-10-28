@@ -1,12 +1,14 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, App, Button, Card, Form, Input, Modal, Radio, Rate, Select, Space, Table, Typography } from 'antd'
+import { Button, Card, Form, Input, Modal, Radio, Rate, Select, Space, Table, Typography } from 'antd'
 import type { TableProps } from 'antd'
 import { useState } from 'react'
 import { adminService } from '@/api/admin'
-import { toApiError } from '@/api/client'
-import type { RatingDto } from '@/api/types'
+import { adminKeys } from '@/api/keys'
+import { FLAGGED_RATING_STATUSES, type FlaggedRatingStatus, type RatingDto } from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
+import { QueryError } from '@/components/QueryError'
 import { StatusTag } from '@/components/StatusTag'
+import { useApiMutation } from '@/hooks/useApiMutation'
+import { usePagedQuery } from '@/hooks/usePagedQuery'
 import { formatDateTime, formatNumber } from '@/lib/format'
 
 interface ResolveForm {
@@ -14,33 +16,25 @@ interface ResolveForm {
   note?: string
 }
 
-const STATUS_OPTIONS = ['FLAGGED', 'UPHELD', 'DISMISSED'].map((value) => ({ value, label: value }))
+const STATUS_OPTIONS = FLAGGED_RATING_STATUSES.map((value) => ({ value, label: value }))
 
 export default function FlaggedRatingsPage() {
-  const { message } = App.useApp()
-  const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
-  const [status, setStatus] = useState<string | undefined>('FLAGGED')
+  const [status, setStatus] = useState<FlaggedRatingStatus | undefined>('FLAGGED')
   const [target, setTarget] = useState<RatingDto | null>(null)
   const [form] = Form.useForm<ResolveForm>()
 
-  const params = { page, pageSize, status }
-  const query = useQuery({
-    queryKey: ['admin', 'flagged-ratings', params],
-    queryFn: () => adminService.flaggedRatings(params),
-    placeholderData: keepPreviousData,
+  const { query, pagination, resetPage } = usePagedQuery<RatingDto>({
+    key: [...adminKeys.flaggedRatings, { status }],
+    fetcher: ({ page, pageSize }) => adminService.flaggedRatings({ page, pageSize, status }),
+    totalLabel: (total) => `${formatNumber(total)} đánh giá`,
   })
 
-  const mutation = useMutation({
-    mutationFn: (input: { id: string; body: ResolveForm }) => adminService.resolveViolation(input.id, input.body),
-    onSuccess: () => {
-      message.success('Đã xử lý đánh giá')
-      setTarget(null)
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'flagged-ratings'] })
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
-    },
-    onError: (error) => message.error(toApiError(error).message),
+  const mutation = useApiMutation({
+    mutationFn: (input: { id: string; body: ResolveForm }) =>
+      adminService.resolveViolation(input.id, input.body),
+    successMessage: 'Đã xử lý đánh giá',
+    invalidate: [adminKeys.flaggedRatings, adminKeys.stats],
+    onSuccess: () => setTarget(null),
   })
 
   const columns: TableProps<RatingDto>['columns'] = [
@@ -103,16 +97,14 @@ export default function FlaggedRatingsPage() {
             value={status}
             onChange={(value) => {
               setStatus(value)
-              setPage(1)
+              resetPage()
             }}
             options={STATUS_OPTIONS}
           />
         </Space>
       </Card>
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Card>
         <Table<RatingDto>
@@ -121,17 +113,7 @@ export default function FlaggedRatingsPage() {
           dataSource={query.data?.items ?? []}
           columns={columns}
           scroll={{ x: 1200 }}
-          pagination={{
-            current: query.data?.meta.page ?? page,
-            pageSize: query.data?.meta.pageSize ?? pageSize,
-            total: query.data?.meta.total ?? 0,
-            showSizeChanger: true,
-            showTotal: (total) => `${formatNumber(total)} đánh giá`,
-            onChange: (nextPage, nextSize) => {
-              setPage(nextPage)
-              setPageSize(nextSize)
-            },
-          }}
+          pagination={pagination}
         />
       </Card>
 

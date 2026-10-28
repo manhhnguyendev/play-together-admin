@@ -1,26 +1,20 @@
 import { ArrowRightOutlined, ReloadOutlined } from '@ant-design/icons'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Alert,
-  App,
-  Button,
-  Card,
-  Form,
-  Input,
-  Modal,
-  Radio,
-  Select,
-  Space,
-  Table,
-  Tabs,
-} from 'antd'
+import { Button, Card, Form, Input, Modal, Radio, Select, Space, Table, Tabs } from 'antd'
 import type { TableProps } from 'antd'
 import { useState } from 'react'
 import { adminService } from '@/api/admin'
-import { toApiError } from '@/api/client'
-import { WITHDRAWAL_STATUSES, type CharityWithdrawalView, type WithdrawalView } from '@/api/types'
+import { adminKeys } from '@/api/keys'
+import {
+  WITHDRAWAL_STATUSES,
+  type CharityWithdrawalView,
+  type WithdrawalStatus,
+  type WithdrawalView,
+} from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
+import { QueryError } from '@/components/QueryError'
 import { StatusTag } from '@/components/StatusTag'
+import { useApiMutation } from '@/hooks/useApiMutation'
+import { usePagedQuery } from '@/hooks/usePagedQuery'
 import { formatDateTime, formatMoney, formatNumber } from '@/lib/format'
 
 interface ResolveForm {
@@ -47,30 +41,25 @@ export default function WithdrawalsPage() {
 }
 
 function UserWithdrawals() {
-  const { message } = App.useApp()
-  const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
-  const [status, setStatus] = useState<string | undefined>('PENDING')
+  const [status, setStatus] = useState<WithdrawalStatus | undefined>('PENDING')
   const [target, setTarget] = useState<WithdrawalView | null>(null)
   const [form] = Form.useForm<ResolveForm>()
 
-  const params = { page, pageSize, status: status as WithdrawalView['status'] | undefined }
-  const query = useQuery({
-    queryKey: ['admin', 'withdrawals', params],
-    queryFn: () => adminService.withdrawals(params),
-    placeholderData: keepPreviousData,
+  const { query, pagination, resetPage } = usePagedQuery<WithdrawalView>({
+    key: [...adminKeys.withdrawals, { status }],
+    fetcher: ({ page, pageSize }) => adminService.withdrawals({ page, pageSize, status }),
+    totalLabel: (total) => `${formatNumber(total)} yêu cầu`,
   })
 
-  const mutation = useMutation({
+  const mutation = useApiMutation({
     mutationFn: (input: { id: string; body: ResolveForm }) =>
-      adminService.resolveWithdrawal(input.id, { status: input.body.decision, note: input.body.note }),
-    onSuccess: () => {
-      message.success('Đã xử lý yêu cầu')
-      setTarget(null)
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'withdrawals'] })
-    },
-    onError: (error) => message.error(toApiError(error).message),
+      adminService.resolveWithdrawal(input.id, {
+        status: input.body.decision,
+        note: input.body.note,
+      }),
+    successMessage: 'Đã xử lý yêu cầu',
+    invalidate: [adminKeys.withdrawals, adminKeys.stats],
+    onSuccess: () => setTarget(null),
   })
 
   const columns: TableProps<WithdrawalView>['columns'] = [
@@ -130,7 +119,7 @@ function UserWithdrawals() {
           value={status}
           onChange={(value) => {
             setStatus(value)
-            setPage(1)
+            resetPage()
           }}
           options={STATUS_OPTIONS}
         />
@@ -139,9 +128,7 @@ function UserWithdrawals() {
         </Button>
       </Space>
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Table<WithdrawalView>
         rowKey="id"
@@ -149,17 +136,7 @@ function UserWithdrawals() {
         dataSource={query.data?.items ?? []}
         columns={columns}
         scroll={{ x: 1000 }}
-        pagination={{
-          current: query.data?.meta.page ?? page,
-          pageSize: query.data?.meta.pageSize ?? pageSize,
-          total: query.data?.meta.total ?? 0,
-          showSizeChanger: true,
-          showTotal: (total) => `${formatNumber(total)} yêu cầu`,
-          onChange: (nextPage, nextSize) => {
-            setPage(nextPage)
-            setPageSize(nextSize)
-          },
-        }}
+        pagination={pagination}
       />
 
       <ResolveModal
@@ -178,33 +155,25 @@ function UserWithdrawals() {
 }
 
 function CharityWithdrawals() {
-  const { message } = App.useApp()
-  const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
-  const [status, setStatus] = useState<string | undefined>('PENDING')
+  const [status, setStatus] = useState<WithdrawalStatus | undefined>('PENDING')
   const [target, setTarget] = useState<CharityWithdrawalView | null>(null)
   const [form] = Form.useForm<ResolveForm>()
 
-  const params = { page, pageSize, status: status as CharityWithdrawalView['status'] | undefined }
-  const query = useQuery({
-    queryKey: ['admin', 'charity-withdrawals', params],
-    queryFn: () => adminService.charityWithdrawals(params),
-    placeholderData: keepPreviousData,
+  const { query, pagination, resetPage } = usePagedQuery<CharityWithdrawalView>({
+    key: [...adminKeys.charityWithdrawals, { status }],
+    fetcher: ({ page, pageSize }) => adminService.charityWithdrawals({ page, pageSize, status }),
+    totalLabel: (total) => `${formatNumber(total)} yêu cầu`,
   })
 
-  const mutation = useMutation({
+  const mutation = useApiMutation({
     mutationFn: (input: { id: string; body: ResolveForm }) =>
       adminService.resolveCharityWithdrawal(input.id, {
         decision: input.body.decision,
         note: input.body.note,
       }),
-    onSuccess: () => {
-      message.success('Đã xử lý yêu cầu')
-      setTarget(null)
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'charity-withdrawals'] })
-    },
-    onError: (error) => message.error(toApiError(error).message),
+    successMessage: 'Đã xử lý yêu cầu',
+    invalidate: [adminKeys.charityWithdrawals, adminKeys.stats],
+    onSuccess: () => setTarget(null),
   })
 
   const columns: TableProps<CharityWithdrawalView>['columns'] = [
@@ -255,7 +224,7 @@ function CharityWithdrawals() {
           value={status}
           onChange={(value) => {
             setStatus(value)
-            setPage(1)
+            resetPage()
           }}
           options={STATUS_OPTIONS}
         />
@@ -264,9 +233,7 @@ function CharityWithdrawals() {
         </Button>
       </Space>
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Table<CharityWithdrawalView>
         rowKey="id"
@@ -274,17 +241,7 @@ function CharityWithdrawals() {
         dataSource={query.data?.items ?? []}
         columns={columns}
         scroll={{ x: 900 }}
-        pagination={{
-          current: query.data?.meta.page ?? page,
-          pageSize: query.data?.meta.pageSize ?? pageSize,
-          total: query.data?.meta.total ?? 0,
-          showSizeChanger: true,
-          showTotal: (total) => `${formatNumber(total)} yêu cầu`,
-          onChange: (nextPage, nextSize) => {
-            setPage(nextPage)
-            setPageSize(nextSize)
-          },
-        }}
+        pagination={pagination}
       />
 
       <ResolveModal

@@ -1,21 +1,12 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AdminLayout } from './AdminLayout'
 import { RequireAdmin } from './RequireAdmin'
-import BroadcastPage from '@/pages/BroadcastPage'
-import CatalogPage from '@/pages/CatalogPage'
-import CharitiesPage from '@/pages/CharitiesPage'
-import ConfigsPage from '@/pages/ConfigsPage'
-import DashboardPage from '@/pages/DashboardPage'
-import FeedbackPage from '@/pages/FeedbackPage'
-import FlaggedRatingsPage from '@/pages/FlaggedRatingsPage'
-import LoginPage from '@/pages/LoginPage'
-import MaintenancePage from '@/pages/MaintenancePage'
-import ReportsPage from '@/pages/ReportsPage'
-import UsersPage from '@/pages/UsersPage'
-import WithdrawalsPage from '@/pages/WithdrawalsPage'
 
 export const router = createBrowserRouter([
-  { path: '/login', element: <LoginPage /> },
+  {
+    path: '/login',
+    lazy: async () => ({ Component: (await import('@/pages/LoginPage')).default }),
+  },
   {
     element: (
       <RequireAdmin>
@@ -23,17 +14,70 @@ export const router = createBrowserRouter([
       </RequireAdmin>
     ),
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: 'users', element: <UsersPage /> },
-      { path: 'withdrawals', element: <WithdrawalsPage /> },
-      { path: 'charities', element: <CharitiesPage /> },
-      { path: 'feedback', element: <FeedbackPage /> },
-      { path: 'reports', element: <ReportsPage /> },
-      { path: 'ratings', element: <FlaggedRatingsPage /> },
-      { path: 'catalog', element: <CatalogPage /> },
-      { path: 'configs', element: <ConfigsPage /> },
-      { path: 'broadcast', element: <BroadcastPage /> },
-      { path: 'maintenance', element: <MaintenancePage /> },
+      {
+        index: true,
+        lazy: async () => ({
+          Component: (await import('@/pages/DashboardPage')).default,
+        }),
+      },
+      {
+        path: 'users',
+        lazy: async () => ({ Component: (await import('@/pages/UsersPage')).default }),
+      },
+      {
+        path: 'withdrawals',
+        lazy: async () => ({
+          Component: (await import('@/pages/WithdrawalsPage')).default,
+        }),
+      },
+      {
+        path: 'charities',
+        lazy: async () => ({
+          Component: (await import('@/pages/CharitiesPage')).default,
+        }),
+      },
+      {
+        path: 'feedback',
+        lazy: async () => ({
+          Component: (await import('@/pages/FeedbackPage')).default,
+        }),
+      },
+      {
+        path: 'reports',
+        lazy: async () => ({
+          Component: (await import('@/pages/ReportsPage')).default,
+        }),
+      },
+      {
+        path: 'ratings',
+        lazy: async () => ({
+          Component: (await import('@/pages/FlaggedRatingsPage')).default,
+        }),
+      },
+      {
+        path: 'catalog',
+        lazy: async () => ({
+          Component: (await import('@/pages/CatalogPage')).default,
+        }),
+      },
+      {
+        path: 'configs',
+        lazy: async () => ({
+          Component: (await import('@/pages/ConfigsPage')).default,
+        }),
+      },
+      {
+        path: 'broadcast',
+        lazy: async () => ({
+          Component: (await import('@/pages/BroadcastPage')).default,
+        }),
+      },
+      {
+        path: 'maintenance',
+        lazy: async () => ({
+          Component: (await import('@/pages/MaintenancePage')).default,
+        }),
+      },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

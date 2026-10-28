@@ -1,8 +1,6 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
-  Alert,
-  App,
   Button,
   Card,
   Drawer,
@@ -21,9 +19,13 @@ import {
 import type { TableProps } from 'antd'
 import { useState } from 'react'
 import { catalogService } from '@/api/admin'
-import { toApiError } from '@/api/client'
+import { catalogKeys } from '@/api/keys'
 import type { GameRank, GameTypeView, GameView } from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
+import { QueryError } from '@/components/QueryError'
+import { useApiMutation } from '@/hooks/useApiMutation'
+import { usePagedQuery } from '@/hooks/usePagedQuery'
+import { trimOrUndefined } from '@/lib/forms'
 import { formatDateTime, formatNumber } from '@/lib/format'
 
 interface GameForm {
@@ -37,11 +39,6 @@ interface GameTypeForm {
   name: string
   shortName?: string
   description?: string
-}
-
-function trimOrUndefined(value?: string): string | undefined {
-  const next = value?.trim()
-  return next ? next : undefined
 }
 
 export default function CatalogPage() {
@@ -62,17 +59,12 @@ export default function CatalogPage() {
 
 function useGameTypeOptions() {
   return useQuery({
-    queryKey: ['catalog', 'game-types', 'options'],
+    queryKey: catalogKeys.gameTypeOptions,
     queryFn: () => catalogService.gameTypes({ page: 1, pageSize: 100 }),
   })
 }
 
 function GamesTab() {
-  const { message } = App.useApp()
-  const queryClient = useQueryClient()
-
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
   const [q, setQ] = useState('')
   const [gameTypeId, setGameTypeId] = useState<string | undefined>()
   const [editing, setEditing] = useState<GameView | null>(null)
@@ -86,16 +78,14 @@ function GamesTab() {
     label: item.shortName ?? item.name,
   }))
 
-  const params = { page, pageSize, q: q || undefined, gameTypeId }
-  const query = useQuery({
-    queryKey: ['catalog', 'games', params],
-    queryFn: () => catalogService.games(params),
-    placeholderData: keepPreviousData,
+  const { query, pagination, resetPage } = usePagedQuery<GameView>({
+    key: [...catalogKeys.games, { q, gameTypeId }],
+    fetcher: ({ page, pageSize }) =>
+      catalogService.games({ page, pageSize, q: q || undefined, gameTypeId }),
+    totalLabel: (total) => `${formatNumber(total)} game`,
   })
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['catalog', 'games'] })
-
-  const saveMutation = useMutation({
+  const saveMutation = useApiMutation({
     mutationFn: (input: { id?: string; values: GameForm }) => {
       const body = {
         name: input.values.name.trim(),
@@ -105,22 +95,18 @@ function GamesTab() {
       }
       return input.id ? catalogService.updateGame(input.id, body) : catalogService.createGame(body)
     },
+    successMessage: 'Đã lưu game',
+    invalidate: [catalogKeys.games],
     onSuccess: () => {
-      message.success('Đã lưu game')
       setModalOpen(false)
       setEditing(null)
-      void invalidate()
     },
-    onError: (error) => message.error(toApiError(error).message),
   })
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useApiMutation({
     mutationFn: (id: string) => catalogService.deleteGame(id),
-    onSuccess: () => {
-      message.success('Đã xoá game')
-      void invalidate()
-    },
-    onError: (error) => message.error(toApiError(error).message),
+    successMessage: 'Đã xoá game',
+    invalidate: [catalogKeys.games],
   })
 
   const openCreate = () => {
@@ -211,7 +197,7 @@ function GamesTab() {
           style={{ width: 260 }}
           onSearch={(value) => {
             setQ(value.trim())
-            setPage(1)
+            resetPage()
           }}
         />
         <Select
@@ -223,7 +209,7 @@ function GamesTab() {
           loading={typesQuery.isLoading}
           onChange={(value) => {
             setGameTypeId(value)
-            setPage(1)
+            resetPage()
           }}
         />
         <Button icon={<ReloadOutlined />} onClick={() => void query.refetch()} loading={query.isFetching}>
@@ -234,9 +220,7 @@ function GamesTab() {
         </Button>
       </Space>
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Table<GameView>
         rowKey="id"
@@ -244,17 +228,7 @@ function GamesTab() {
         dataSource={query.data?.items ?? []}
         columns={columns}
         scroll={{ x: 1000 }}
-        pagination={{
-          current: query.data?.meta.page ?? page,
-          pageSize: query.data?.meta.pageSize ?? pageSize,
-          total: query.data?.meta.total ?? 0,
-          showSizeChanger: true,
-          showTotal: (total) => `${formatNumber(total)} game`,
-          onChange: (nextPage, nextSize) => {
-            setPage(nextPage)
-            setPageSize(nextSize)
-          },
-        }}
+        pagination={pagination}
       />
 
       <Modal
@@ -265,9 +239,7 @@ function GamesTab() {
           setEditing(null)
         }}
         onOk={() => {
-          void form.validateFields().then((values) =>
-            saveMutation.mutate({ id: editing?.id, values }),
-          )
+          void form.validateFields().then((values) => saveMutation.mutate({ id: editing?.id, values }))
         }}
         confirmLoading={saveMutation.isPending}
         destroyOnHidden
@@ -308,42 +280,33 @@ interface RankForm {
 }
 
 function RanksPanel({ gameId }: { gameId: string }) {
-  const { message } = App.useApp()
-  const queryClient = useQueryClient()
   const [editing, setEditing] = useState<GameRank | null>(null)
   const [form] = Form.useForm<RankForm>()
 
   const query = useQuery({
-    queryKey: ['catalog', 'game', gameId],
+    queryKey: catalogKeys.game(gameId),
     queryFn: () => catalogService.game(gameId),
   })
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['catalog', 'game', gameId] })
-    void queryClient.invalidateQueries({ queryKey: ['catalog', 'games'] })
-  }
+  const invalidate = [catalogKeys.game(gameId), catalogKeys.games]
 
-  const saveMutation = useMutation({
+  const saveMutation = useApiMutation({
     mutationFn: (input: { rankId?: string; values: RankForm }) =>
       input.rankId
         ? catalogService.updateRank(input.rankId, input.values)
         : catalogService.createRank(gameId, input.values),
+    successMessage: 'Đã lưu thứ hạng',
+    invalidate,
     onSuccess: () => {
-      message.success('Đã lưu thứ hạng')
       setEditing(null)
       form.resetFields()
-      invalidate()
     },
-    onError: (error) => message.error(toApiError(error).message),
   })
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useApiMutation({
     mutationFn: (rankId: string) => catalogService.deleteRank(rankId),
-    onSuccess: () => {
-      message.success('Đã xoá thứ hạng')
-      invalidate()
-    },
-    onError: (error) => message.error(toApiError(error).message),
+    successMessage: 'Đã xoá thứ hạng',
+    invalidate,
   })
 
   const ranks = [...(query.data?.ranks ?? [])].sort((a, b) => a.no - b.no)
@@ -354,21 +317,11 @@ function RanksPanel({ gameId }: { gameId: string }) {
         Thứ hạng được dùng để xếp hạng người chơi trong game này.
       </Typography.Paragraph>
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Space align="end" style={{ marginBottom: 16 }} wrap>
-        <Form<RankForm>
-          form={form}
-          layout="inline"
-          onFinish={(values) => saveMutation.mutate({ rankId: editing?.id, values })}
-        >
-          <Form.Item
-            name="no"
-            label="STT"
-            rules={[{ required: true, message: 'STT' }]}
-          >
+        <Form<RankForm> form={form} layout="inline" onFinish={(values) => saveMutation.mutate({ rankId: editing?.id, values })}>
+          <Form.Item name="no" label="STT" rules={[{ required: true, message: 'STT' }]}>
             <InputNumber min={1} max={100} style={{ width: 90 }} />
           </Form.Item>
           <Form.Item name="name" label="Tên" rules={[{ required: true, message: 'Tên' }]}>
@@ -441,54 +394,40 @@ function RanksPanel({ gameId }: { gameId: string }) {
 }
 
 function GameTypesTab() {
-  const { message } = App.useApp()
-  const queryClient = useQueryClient()
-
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<GameTypeView | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [form] = Form.useForm<GameTypeForm>()
 
-  const params = { page, pageSize, q: q || undefined }
-  const query = useQuery({
-    queryKey: ['catalog', 'game-types', params],
-    queryFn: () => catalogService.gameTypes(params),
-    placeholderData: keepPreviousData,
+  const { query, pagination, resetPage } = usePagedQuery<GameTypeView>({
+    key: [...catalogKeys.gameTypes, { q }],
+    fetcher: ({ page, pageSize }) => catalogService.gameTypes({ page, pageSize, q: q || undefined }),
+    totalLabel: (total) => `${formatNumber(total)} thể loại`,
   })
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['catalog', 'game-types'] })
-  }
+  const invalidate = [catalogKeys.gameTypes, catalogKeys.games]
 
-  const saveMutation = useMutation({
+  const saveMutation = useApiMutation({
     mutationFn: (input: { id?: string; values: GameTypeForm }) => {
       const body = {
         name: input.values.name.trim(),
         shortName: trimOrUndefined(input.values.shortName),
         description: trimOrUndefined(input.values.description),
       }
-      return input.id
-        ? catalogService.updateGameType(input.id, body)
-        : catalogService.createGameType(body)
+      return input.id ? catalogService.updateGameType(input.id, body) : catalogService.createGameType(body)
     },
+    successMessage: 'Đã lưu thể loại',
+    invalidate,
     onSuccess: () => {
-      message.success('Đã lưu thể loại')
       setModalOpen(false)
       setEditing(null)
-      invalidate()
     },
-    onError: (error) => message.error(toApiError(error).message),
   })
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useApiMutation({
     mutationFn: (id: string) => catalogService.deleteGameType(id),
-    onSuccess: () => {
-      message.success('Đã xoá thể loại')
-      invalidate()
-    },
-    onError: (error) => message.error(toApiError(error).message),
+    successMessage: 'Đã xoá thể loại',
+    invalidate,
   })
 
   const columns: TableProps<GameTypeView>['columns'] = [
@@ -550,7 +489,7 @@ function GameTypesTab() {
           style={{ width: 260 }}
           onSearch={(value) => {
             setQ(value.trim())
-            setPage(1)
+            resetPage()
           }}
         />
         <Button icon={<ReloadOutlined />} onClick={() => void query.refetch()} loading={query.isFetching}>
@@ -569,26 +508,14 @@ function GameTypesTab() {
         </Button>
       </Space>
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Table<GameTypeView>
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items ?? []}
         columns={columns}
-        pagination={{
-          current: query.data?.meta.page ?? page,
-          pageSize: query.data?.meta.pageSize ?? pageSize,
-          total: query.data?.meta.total ?? 0,
-          showSizeChanger: true,
-          showTotal: (total) => `${formatNumber(total)} thể loại`,
-          onChange: (nextPage, nextSize) => {
-            setPage(nextPage)
-            setPageSize(nextSize)
-          },
-        }}
+        pagination={pagination}
       />
 
       <Modal
@@ -599,9 +526,7 @@ function GameTypesTab() {
           setEditing(null)
         }}
         onOk={() => {
-          void form.validateFields().then((values) =>
-            saveMutation.mutate({ id: editing?.id, values }),
-          )
+          void form.validateFields().then((values) => saveMutation.mutate({ id: editing?.id, values }))
         }}
         confirmLoading={saveMutation.isPending}
         destroyOnHidden

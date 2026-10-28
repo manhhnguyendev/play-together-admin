@@ -1,4 +1,4 @@
-import axios, { AxiosError, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios'
+import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import type { AuthResponse, ProblemDetails } from './types'
 
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api/v2'
@@ -129,21 +129,3 @@ http.interceptors.response.use(
   },
 )
 
-export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-  const { data } = await http.get<T>(url, config)
-  return data
-}
-
-export async function apiPost<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
-  const { data } = await http.post<T>(url, body, config)
-  return data
-}
-
-export async function apiPatch<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
-  const { data } = await http.patch<T>(url, body, config)
-  return data
-}
-
-export async function apiDelete(url: string): Promise<void> {
-  await http.delete(url)
-}

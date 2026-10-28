@@ -1,8 +1,6 @@
 import { EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
-  Alert,
-  App,
   Button,
   Card,
   Form,
@@ -18,9 +16,12 @@ import {
 import type { TableProps } from 'antd'
 import { useState } from 'react'
 import { adminService } from '@/api/admin'
-import { toApiError } from '@/api/client'
+import { adminKeys, publicConfigKey } from '@/api/keys'
 import type { ResolvedConfig } from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
+import { QueryError } from '@/components/QueryError'
+import { useApiMutation } from '@/hooks/useApiMutation'
+import { trimOrUndefined } from '@/lib/forms'
 import { formatDateTime, formatNumber } from '@/lib/format'
 
 interface ConfigForm {
@@ -34,46 +35,29 @@ interface CreateConfigForm extends ConfigForm {
   no: number
 }
 
-function trimOrUndefined(value?: string): string | undefined {
-  const next = value?.trim()
-  return next ? next : undefined
-}
+const CONFIG_KEYS = [adminKeys.configs, publicConfigKey]
 
 export default function ConfigsPage() {
-  const { message } = App.useApp()
-  const queryClient = useQueryClient()
-
   const [editing, setEditing] = useState<ResolvedConfig | null>(null)
   const [creating, setCreating] = useState(false)
   const [editForm] = Form.useForm<ConfigForm>()
   const [createForm] = Form.useForm<CreateConfigForm>()
 
-  const query = useQuery({
-    queryKey: ['admin', 'configs'],
-    queryFn: () => adminService.configs(),
-  })
+  const query = useQuery({ queryKey: adminKeys.configs, queryFn: adminService.configs })
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['admin', 'configs'] })
-    void queryClient.invalidateQueries({ queryKey: ['config', 'public'] })
-  }
-
-  const updateMutation = useMutation({
+  const updateMutation = useApiMutation({
     mutationFn: (input: { id: string; values: ConfigForm }) =>
       adminService.updateConfig(input.id, {
         title: input.values.title.trim(),
         value: input.values.value,
         description: trimOrUndefined(input.values.description),
       }),
-    onSuccess: () => {
-      message.success('Đã cập nhật cấu hình')
-      setEditing(null)
-      invalidate()
-    },
-    onError: (error) => message.error(toApiError(error).message),
+    successMessage: 'Đã cập nhật cấu hình',
+    invalidate: CONFIG_KEYS,
+    onSuccess: () => setEditing(null),
   })
 
-  const createMutation = useMutation({
+  const createMutation = useApiMutation({
     mutationFn: (values: CreateConfigForm) =>
       adminService.createConfig({
         key: values.key.trim(),
@@ -82,22 +66,18 @@ export default function ConfigsPage() {
         value: values.value,
         description: trimOrUndefined(values.description),
       }),
-    onSuccess: () => {
-      message.success('Đã thêm cấu hình')
-      setCreating(false)
-      invalidate()
-    },
-    onError: (error) => message.error(toApiError(error).message),
+    successMessage: 'Đã thêm cấu hình',
+    invalidate: CONFIG_KEYS,
+    onSuccess: () => setCreating(false),
   })
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useApiMutation({
     mutationFn: (id: string) => adminService.deleteConfig(id),
-    onSuccess: () => {
-      message.success('Đã xoá cấu hình')
-      invalidate()
-    },
-    onError: (error) => message.error(toApiError(error).message),
+    successMessage: 'Đã xoá cấu hình',
+    invalidate: CONFIG_KEYS,
   })
+
+  const deletingId = deleteMutation.isPending ? deleteMutation.variables : undefined
 
   const columns: TableProps<ResolvedConfig>['columns'] = [
     {
@@ -127,8 +107,7 @@ export default function ConfigsPage() {
       title: 'Nguồn',
       dataIndex: 'id',
       width: 130,
-      render: (value: string | null) =>
-        value ? <Tag color="blue">Bản ghi</Tag> : <Tag>Mặc định</Tag>,
+      render: (value: string | null) => (value ? <Tag color="blue">Bản ghi</Tag> : <Tag>Mặc định</Tag>),
     },
     {
       title: 'Cập nhật',
@@ -163,7 +142,7 @@ export default function ConfigsPage() {
               okButtonProps={{ danger: true }}
               onConfirm={() => deleteMutation.mutate(row.id as string)}
             >
-              <Button size="small" danger>
+              <Button size="small" danger loading={deletingId === row.id}>
                 Xoá
               </Button>
             </Popconfirm>
@@ -194,9 +173,7 @@ export default function ConfigsPage() {
         }
       />
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Card>
         <Space style={{ marginBottom: 16 }}>
@@ -234,11 +211,7 @@ export default function ConfigsPage() {
           <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, min: 2, max: 150 }]}>
             <Input maxLength={150} />
           </Form.Item>
-          <Form.Item
-            name="value"
-            label="Giá trị"
-            rules={[{ required: true, message: 'Nhập giá trị' }]}
-          >
+          <Form.Item name="value" label="Giá trị" rules={[{ required: true, message: 'Nhập giá trị' }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="description" label="Mô tả">
@@ -272,21 +245,13 @@ export default function ConfigsPage() {
           >
             <Input maxLength={100} />
           </Form.Item>
-          <Form.Item
-            name="no"
-            label="Thứ tự"
-            rules={[{ required: true, message: 'Nhập thứ tự' }]}
-          >
+          <Form.Item name="no" label="Thứ tự" rules={[{ required: true, message: 'Nhập thứ tự' }]}>
             <InputNumber min={1} max={1000} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, min: 2, max: 150 }]}>
             <Input maxLength={150} />
           </Form.Item>
-          <Form.Item
-            name="value"
-            label="Giá trị"
-            rules={[{ required: true, message: 'Nhập giá trị' }]}
-          >
+          <Form.Item name="value" label="Giá trị" rules={[{ required: true, message: 'Nhập giá trị' }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="description" label="Mô tả">

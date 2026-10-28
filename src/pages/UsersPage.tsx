@@ -1,7 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert,
-  App,
   Avatar,
   Button,
   Card,
@@ -16,20 +13,30 @@ import {
   Tag,
 } from 'antd'
 import type { TableProps } from 'antd'
-import { keepPreviousData } from '@tanstack/react-query'
 import { useState } from 'react'
-import { adminService, type ListUsersParams } from '@/api/admin'
-import { toApiError } from '@/api/client'
-import { USER_ROLES, USER_STATUSES, type Role, type UserSummary } from '@/api/types'
+import { adminService } from '@/api/admin'
+import { adminKeys } from '@/api/keys'
+import {
+  USER_ROLES,
+  USER_STATUSES,
+  type Role,
+  type UserStatus,
+  type UserSummary,
+} from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
+import { QueryError } from '@/components/QueryError'
 import { StatusTag } from '@/components/StatusTag'
+import { useApiMutation } from '@/hooks/useApiMutation'
+import { usePagedQuery } from '@/hooks/usePagedQuery'
 import { formatDateTime, formatMoney, formatNumber } from '@/lib/format'
 
 const ROLE_COLORS: Record<Role, string> = { USER: 'blue', ADMIN: 'purple', CHARITY: 'magenta' }
+const ROLE_OPTIONS = USER_ROLES.map((value) => ({ value, label: value }))
+const STATUS_OPTIONS = USER_STATUSES.map((value) => ({ value, label: value }))
 
 interface EditForm {
   role: Role
-  status: string
+  status: UserStatus
   isPlayer: boolean
   isActive: boolean
 }
@@ -41,13 +48,8 @@ interface BehaviorForm {
 }
 
 export default function UsersPage() {
-  const { message } = App.useApp()
-  const queryClient = useQueryClient()
-
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
   const [q, setQ] = useState('')
-  const [role, setRole] = useState<string | undefined>()
+  const [role, setRole] = useState<Role | undefined>()
   const [active, setActive] = useState<'true' | 'false' | undefined>()
   const [player, setPlayer] = useState<'true' | 'false' | undefined>()
 
@@ -56,43 +58,36 @@ export default function UsersPage() {
   const [editForm] = Form.useForm<EditForm>()
   const [behaviorForm] = Form.useForm<BehaviorForm>()
 
-  const params: ListUsersParams = {
-    page,
-    pageSize,
-    q: q || undefined,
-    role,
-    isActive: active,
-    isPlayer: player,
-  }
-
-  const query = useQuery({
-    queryKey: ['admin', 'users', params],
-    queryFn: () => adminService.users(params),
-    placeholderData: keepPreviousData,
+  const { query, pagination, resetPage } = usePagedQuery<UserSummary>({
+    key: [...adminKeys.users, { q, role, active, player }],
+    fetcher: ({ page, pageSize }) =>
+      adminService.users({
+        page,
+        pageSize,
+        q: q || undefined,
+        role,
+        isActive: active,
+        isPlayer: player,
+      }),
+    totalLabel: (total) => `${formatNumber(total)} tài khoản`,
   })
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
-
-  const updateMutation = useMutation({
+  const updateMutation = useApiMutation({
     mutationFn: (input: { id: string; body: EditForm }) => adminService.updateUser(input.id, input.body),
-    onSuccess: () => {
-      message.success('Đã cập nhật tài khoản')
-      setEditing(null)
-      void invalidate()
-    },
-    onError: (error) => message.error(toApiError(error).message),
+    successMessage: 'Đã cập nhật tài khoản',
+    invalidate: [adminKeys.users, adminKeys.stats],
+    onSuccess: () => setEditing(null),
   })
 
-  const behaviorMutation = useMutation({
+  const behaviorMutation = useApiMutation({
     mutationFn: (input: { id: string; body: BehaviorForm }) =>
       adminService.adjustBehavior(input.id, input.body),
-    onSuccess: () => {
-      message.success('Đã điều chỉnh điểm')
-      setBehaviorTarget(null)
-      void invalidate()
-    },
-    onError: (error) => message.error(toApiError(error).message),
+    successMessage: 'Đã điều chỉnh điểm',
+    invalidate: [adminKeys.users],
+    onSuccess: () => setBehaviorTarget(null),
   })
+
+  const updatingId = updateMutation.isPending ? updateMutation.variables?.id : undefined
 
   const columns: TableProps<UserSummary>['columns'] = [
     {
@@ -168,12 +163,7 @@ export default function UsersPage() {
             size="small"
             onClick={() => {
               setEditing(user)
-              editForm.setFieldsValue({
-                role: user.role,
-                status: user.status,
-                isPlayer: user.isPlayer,
-                isActive: user.isActive,
-              })
+              editForm.setFieldsValue(editValuesOf(user))
             }}
           >
             Sửa
@@ -190,9 +180,9 @@ export default function UsersPage() {
           <Button
             size="small"
             danger={user.isActive}
-            loading={updateMutation.isPending}
+            loading={updatingId === user.id}
             onClick={() =>
-              updateMutation.mutate({ id: user.id, body: { ...pickEditValues(user), isActive: !user.isActive } })
+              updateMutation.mutate({ id: user.id, body: { ...editValuesOf(user), isActive: !user.isActive } })
             }
           >
             {user.isActive ? 'Khoá' : 'Mở khoá'}
@@ -214,7 +204,7 @@ export default function UsersPage() {
             style={{ width: 260 }}
             onSearch={(value) => {
               setQ(value.trim())
-              setPage(1)
+              resetPage()
             }}
           />
           <Select
@@ -224,9 +214,9 @@ export default function UsersPage() {
             value={role}
             onChange={(value) => {
               setRole(value)
-              setPage(1)
+              resetPage()
             }}
-            options={USER_ROLES.map((item) => ({ value: item, label: item }))}
+            options={ROLE_OPTIONS}
           />
           <Select
             allowClear
@@ -235,7 +225,7 @@ export default function UsersPage() {
             value={active}
             onChange={(value) => {
               setActive(value)
-              setPage(1)
+              resetPage()
             }}
             options={[
               { value: 'true', label: 'Đang hoạt động' },
@@ -249,7 +239,7 @@ export default function UsersPage() {
             value={player}
             onChange={(value) => {
               setPlayer(value)
-              setPage(1)
+              resetPage()
             }}
             options={[
               { value: 'true', label: 'Có bật player' },
@@ -259,9 +249,7 @@ export default function UsersPage() {
         </Space>
       </Card>
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Card>
         <Table<UserSummary>
@@ -270,17 +258,7 @@ export default function UsersPage() {
           dataSource={query.data?.items ?? []}
           columns={columns}
           scroll={{ x: 1100 }}
-          pagination={{
-            current: query.data?.meta.page ?? page,
-            pageSize: query.data?.meta.pageSize ?? pageSize,
-            total: query.data?.meta.total ?? 0,
-            showSizeChanger: true,
-            showTotal: (total) => `${formatNumber(total)} tài khoản`,
-            onChange: (nextPage, nextSize) => {
-              setPage(nextPage)
-              setPageSize(nextSize)
-            },
-          }}
+          pagination={pagination}
         />
       </Card>
 
@@ -298,10 +276,10 @@ export default function UsersPage() {
       >
         <Form<EditForm> form={editForm} layout="vertical" preserve={false}>
           <Form.Item name="role" label="Vai trò" rules={[{ required: true }]}>
-            <Select options={USER_ROLES.map((item) => ({ value: item, label: item }))} />
+            <Select options={ROLE_OPTIONS} />
           </Form.Item>
           <Form.Item name="status" label="Trạng thái hiện diện" rules={[{ required: true }]}>
-            <Select options={USER_STATUSES.map((item) => ({ value: item, label: item }))} />
+            <Select options={STATUS_OPTIONS} />
           </Form.Item>
           <Form.Item name="isPlayer" label="Bật chế độ người chơi" valuePropName="checked">
             <Switch />
@@ -325,18 +303,10 @@ export default function UsersPage() {
         destroyOnHidden
       >
         <Form<BehaviorForm> form={behaviorForm} layout="vertical" preserve={false}>
-          <Form.Item
-            name="points"
-            label="Điểm hành vi (-100..100)"
-            rules={[{ required: true }]}
-          >
+          <Form.Item name="points" label="Điểm hành vi (-100..100)" rules={[{ required: true }]}>
             <InputNumber min={-100} max={100} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item
-            name="satisfaction"
-            label="Điểm hài lòng (-100..100)"
-            rules={[{ required: true }]}
-          >
+          <Form.Item name="satisfaction" label="Điểm hài lòng (-100..100)" rules={[{ required: true }]}>
             <InputNumber min={-100} max={100} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="note" label="Ghi chú">
@@ -348,6 +318,6 @@ export default function UsersPage() {
   )
 }
 
-function pickEditValues(user: UserSummary): EditForm {
+function editValuesOf(user: UserSummary): EditForm {
   return { role: user.role, status: user.status, isPlayer: user.isPlayer, isActive: user.isActive }
 }

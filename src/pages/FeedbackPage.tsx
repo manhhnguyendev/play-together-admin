@@ -1,12 +1,14 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, App, Button, Card, Form, Input, Modal, Radio, Select, Space, Table, Tag } from 'antd'
+import { Button, Card, Form, Input, Modal, Radio, Select, Space, Table, Tag } from 'antd'
 import type { TableProps } from 'antd'
 import { useState } from 'react'
-import { adminService, type ListFeedbackParams } from '@/api/admin'
-import { toApiError } from '@/api/client'
-import { FEEDBACK_STATUSES, type AdminFeedbackView } from '@/api/types'
+import { adminService } from '@/api/admin'
+import { adminKeys } from '@/api/keys'
+import { FEEDBACK_STATUSES, type AdminFeedbackView, type FeedbackStatus } from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
+import { QueryError } from '@/components/QueryError'
 import { StatusTag } from '@/components/StatusTag'
+import { useApiMutation } from '@/hooks/useApiMutation'
+import { usePagedQuery } from '@/hooks/usePagedQuery'
 import { formatDateTime, formatNumber } from '@/lib/format'
 
 interface ResolveForm {
@@ -21,31 +23,27 @@ const TYPE_LABEL: Record<AdminFeedbackView['type'], string> = {
   OTHER: 'Khác',
 }
 
+const STATUS_OPTIONS = FEEDBACK_STATUSES.map((value) => ({ value, label: value }))
+
 export default function FeedbackPage() {
-  const { message } = App.useApp()
-  const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
-  const [status, setStatus] = useState<string | undefined>('PENDING')
+  const [status, setStatus] = useState<FeedbackStatus | undefined>('PENDING')
   const [q, setQ] = useState('')
   const [target, setTarget] = useState<AdminFeedbackView | null>(null)
   const [form] = Form.useForm<ResolveForm>()
 
-  const params: ListFeedbackParams = { page, pageSize, status, q: q || undefined }
-  const query = useQuery({
-    queryKey: ['admin', 'feedback', params],
-    queryFn: () => adminService.feedback(params),
-    placeholderData: keepPreviousData,
+  const { query, pagination, resetPage } = usePagedQuery<AdminFeedbackView>({
+    key: [...adminKeys.feedback, { status, q }],
+    fetcher: ({ page, pageSize }) =>
+      adminService.feedback({ page, pageSize, status, q: q || undefined }),
+    totalLabel: (total) => `${formatNumber(total)} feedback`,
   })
 
-  const mutation = useMutation({
-    mutationFn: (input: { id: string; body: ResolveForm }) => adminService.resolveFeedback(input.id, input.body),
-    onSuccess: () => {
-      message.success('Đã xử lý feedback')
-      setTarget(null)
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'feedback'] })
-    },
-    onError: (error) => message.error(toApiError(error).message),
+  const mutation = useApiMutation({
+    mutationFn: (input: { id: string; body: ResolveForm }) =>
+      adminService.resolveFeedback(input.id, input.body),
+    successMessage: 'Đã xử lý feedback',
+    invalidate: [adminKeys.feedback, adminKeys.stats],
+    onSuccess: () => setTarget(null),
   })
 
   const columns: TableProps<AdminFeedbackView>['columns'] = [
@@ -117,9 +115,9 @@ export default function FeedbackPage() {
             value={status}
             onChange={(value) => {
               setStatus(value)
-              setPage(1)
+              resetPage()
             }}
-            options={FEEDBACK_STATUSES.map((value) => ({ value, label: value }))}
+            options={STATUS_OPTIONS}
           />
           <Input.Search
             allowClear
@@ -127,15 +125,13 @@ export default function FeedbackPage() {
             style={{ width: 280 }}
             onSearch={(value) => {
               setQ(value.trim())
-              setPage(1)
+              resetPage()
             }}
           />
         </Space>
       </Card>
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Card>
         <Table<AdminFeedbackView>
@@ -144,17 +140,7 @@ export default function FeedbackPage() {
           dataSource={query.data?.items ?? []}
           columns={columns}
           scroll={{ x: 1100 }}
-          pagination={{
-            current: query.data?.meta.page ?? page,
-            pageSize: query.data?.meta.pageSize ?? pageSize,
-            total: query.data?.meta.total ?? 0,
-            showSizeChanger: true,
-            showTotal: (total) => `${formatNumber(total)} feedback`,
-            onChange: (nextPage, nextSize) => {
-              setPage(nextPage)
-              setPageSize(nextSize)
-            },
-          }}
+          pagination={pagination}
         />
       </Card>
 

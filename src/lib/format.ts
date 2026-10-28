@@ -5,6 +5,3 @@ export const formatNumber = (value: number): string => new Intl.NumberFormat('vi
 
 export const formatDateTime = (iso: string | null | undefined): string =>
   iso ? new Date(iso).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : '—'
-
-export const formatDate = (iso: string | null | undefined): string =>
-  iso ? new Date(iso).toLocaleDateString('vi-VN') : '—'

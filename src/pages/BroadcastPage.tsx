@@ -1,9 +1,9 @@
-import { useMutation } from '@tanstack/react-query'
-import { Alert, App, Button, Card, Form, Input, Result } from 'antd'
+import { Alert, Button, Card, Form, Input, Result } from 'antd'
 import { useState } from 'react'
 import { adminService } from '@/api/admin'
-import { toApiError } from '@/api/client'
 import { PageHeader } from '@/components/PageHeader'
+import { useApiMutation } from '@/hooks/useApiMutation'
+import { trimOrUndefined } from '@/lib/forms'
 
 interface BroadcastForm {
   title: string
@@ -12,23 +12,21 @@ interface BroadcastForm {
 }
 
 export default function BroadcastPage() {
-  const { message } = App.useApp()
   const [form] = Form.useForm<BroadcastForm>()
   const [recipients, setRecipients] = useState<number | null>(null)
 
-  const mutation = useMutation({
+  const mutation = useApiMutation({
     mutationFn: (values: BroadcastForm) =>
       adminService.broadcast({
         title: values.title.trim(),
         body: values.body.trim(),
-        referenceUrl: values.referenceUrl?.trim() || undefined,
+        referenceUrl: trimOrUndefined(values.referenceUrl),
       }),
+    successMessage: (result) => `Đã gửi tới ${result.recipients} người dùng`,
     onSuccess: (result) => {
       setRecipients(result.recipients)
-      message.success(`Đã gửi tới ${result.recipients} người dùng`)
       form.resetFields()
     },
-    onError: (error) => message.error(toApiError(error).message),
   })
 
   return (
@@ -54,11 +52,7 @@ export default function BroadcastPage() {
             style={{ marginBottom: 16 }}
             title="Thông báo gửi ngay và không thể thu hồi. Kiểm tra kỹ nội dung trước khi gửi."
           />
-          <Form<BroadcastForm>
-            form={form}
-            layout="vertical"
-            onFinish={(values) => mutation.mutate(values)}
-          >
+          <Form<BroadcastForm> form={form} layout="vertical" onFinish={(values) => mutation.mutate(values)}>
             <Form.Item
               name="title"
               label="Tiêu đề"

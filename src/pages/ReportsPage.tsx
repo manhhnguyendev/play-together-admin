@@ -1,7 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert,
-  App,
   Button,
   Card,
   Descriptions,
@@ -18,39 +15,37 @@ import {
 } from 'antd'
 import type { TableProps } from 'antd'
 import { useState } from 'react'
-import { adminService, type ListReportsParams, type ResolveReportBody } from '@/api/admin'
-import { toApiError } from '@/api/client'
-import { REPORT_STATUSES, type ReportDto } from '@/api/types'
+import { adminService, type ResolveReportBody } from '@/api/admin'
+import { adminKeys } from '@/api/keys'
+import { REPORT_STATUSES, type ReportDto, type ReportStatus } from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
+import { QueryError } from '@/components/QueryError'
 import { StatusTag } from '@/components/StatusTag'
+import { useApiMutation } from '@/hooks/useApiMutation'
+import { usePagedQuery } from '@/hooks/usePagedQuery'
 import { formatDateTime, formatNumber } from '@/lib/format'
 
+const STATUS_OPTIONS = REPORT_STATUSES.map((value) => ({ value, label: value }))
+
 export default function ReportsPage() {
-  const { message } = App.useApp()
-  const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
-  const [status, setStatus] = useState<string | undefined>('PENDING')
+  const [status, setStatus] = useState<ReportStatus | undefined>('PENDING')
   const [q, setQ] = useState('')
   const [target, setTarget] = useState<ReportDto | null>(null)
   const [form] = Form.useForm<ResolveReportBody>()
 
-  const params: ListReportsParams = { page, pageSize, status, q: q || undefined }
-  const query = useQuery({
-    queryKey: ['admin', 'reports', params],
-    queryFn: () => adminService.reports(params),
-    placeholderData: keepPreviousData,
+  const { query, pagination, resetPage } = usePagedQuery<ReportDto>({
+    key: [...adminKeys.reports, { status, q }],
+    fetcher: ({ page, pageSize }) =>
+      adminService.reports({ page, pageSize, status, q: q || undefined }),
+    totalLabel: (total) => `${formatNumber(total)} báo cáo`,
   })
 
-  const mutation = useMutation({
-    mutationFn: (input: { id: string; body: ResolveReportBody }) => adminService.resolveReport(input.id, input.body),
-    onSuccess: () => {
-      message.success('Đã xử lý báo cáo')
-      setTarget(null)
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'reports'] })
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
-    },
-    onError: (error) => message.error(toApiError(error).message),
+  const mutation = useApiMutation({
+    mutationFn: (input: { id: string; body: ResolveReportBody }) =>
+      adminService.resolveReport(input.id, input.body),
+    successMessage: 'Đã xử lý báo cáo',
+    invalidate: [adminKeys.reports, adminKeys.stats],
+    onSuccess: () => setTarget(null),
   })
 
   const columns: TableProps<ReportDto>['columns'] = [
@@ -114,9 +109,9 @@ export default function ReportsPage() {
             value={status}
             onChange={(value) => {
               setStatus(value)
-              setPage(1)
+              resetPage()
             }}
-            options={REPORT_STATUSES.map((value) => ({ value, label: value }))}
+            options={STATUS_OPTIONS}
           />
           <Input.Search
             allowClear
@@ -124,15 +119,13 @@ export default function ReportsPage() {
             style={{ width: 280 }}
             onSearch={(value) => {
               setQ(value.trim())
-              setPage(1)
+              resetPage()
             }}
           />
         </Space>
       </Card>
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Card>
         <Table<ReportDto>
@@ -141,17 +134,7 @@ export default function ReportsPage() {
           dataSource={query.data?.items ?? []}
           columns={columns}
           scroll={{ x: 1000 }}
-          pagination={{
-            current: query.data?.meta.page ?? page,
-            pageSize: query.data?.meta.pageSize ?? pageSize,
-            total: query.data?.meta.total ?? 0,
-            showSizeChanger: true,
-            showTotal: (total) => `${formatNumber(total)} báo cáo`,
-            onChange: (nextPage, nextSize) => {
-              setPage(nextPage)
-              setPageSize(nextSize)
-            },
-          }}
+          pagination={pagination}
         />
       </Card>
 

@@ -1,8 +1,5 @@
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert,
-  App,
   Avatar,
   Button,
   Card,
@@ -19,29 +16,34 @@ import {
 import type { TableProps } from 'antd'
 import { useState } from 'react'
 import { adminService } from '@/api/admin'
-import { toApiError } from '@/api/client'
+import { adminKeys } from '@/api/keys'
 import type { CharityView } from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
+import { QueryError } from '@/components/QueryError'
+import { useApiMutation } from '@/hooks/useApiMutation'
+import { usePagedQuery } from '@/hooks/usePagedQuery'
+import { trimOrUndefined } from '@/lib/forms'
 import { formatDateTime, formatMoney, formatNumber } from '@/lib/format'
 
 interface CharityForm {
-  email?: string
-  password?: string
   organizationName: string
   information?: string
   address?: string
   contactEmail?: string
   phone?: string
   avatarUrl?: string
-  isActive?: boolean
 }
 
-function trimOrUndefined(value?: string): string | undefined {
-  const next = value?.trim()
-  return next ? next : undefined
+interface CreateCharityForm extends CharityForm {
+  email: string
+  password: string
 }
 
-function toPayload(values: CharityForm) {
+interface EditCharityForm extends CharityForm {
+  isActive: boolean
+}
+
+function profilePayload(values: CharityForm) {
   return {
     organizationName: values.organizationName.trim(),
     information: trimOrUndefined(values.information),
@@ -53,63 +55,67 @@ function toPayload(values: CharityForm) {
 }
 
 export default function CharitiesPage() {
-  const { message } = App.useApp()
-  const queryClient = useQueryClient()
-
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<CharityView | null>(null)
   const [creating, setCreating] = useState(false)
-  const [form] = Form.useForm<CharityForm>()
+  const [createForm] = Form.useForm<CreateCharityForm>()
+  const [editForm] = Form.useForm<EditCharityForm>()
 
-  const params = { page, pageSize, q: q || undefined }
-  const query = useQuery({
-    queryKey: ['admin', 'charities', params],
-    queryFn: () => adminService.charities(params),
-    placeholderData: keepPreviousData,
+  const { query, pagination, resetPage } = usePagedQuery<CharityView>({
+    key: [...adminKeys.charities, { q }],
+    fetcher: ({ page, pageSize }) => adminService.charities({ page, pageSize, q: q || undefined }),
+    totalLabel: (total) => `${formatNumber(total)} tổ chức`,
   })
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin', 'charities'] })
-
-  const createMutation = useMutation({
-    mutationFn: (values: CharityForm) =>
+  const createMutation = useApiMutation({
+    mutationFn: (values: CreateCharityForm) =>
       adminService.createCharity({
-        email: values.email?.trim() ?? '',
-        password: values.password ?? '',
-        ...toPayload(values),
+        email: values.email.trim(),
+        password: values.password,
+        ...profilePayload(values),
       }),
-    onSuccess: () => {
-      message.success('Đã tạo tài khoản tổ chức từ thiện')
-      setCreating(false)
-      void invalidate()
-    },
-    onError: (error) => message.error(toApiError(error).message),
+    successMessage: 'Đã tạo tài khoản tổ chức từ thiện',
+    invalidate: [adminKeys.charities],
+    onSuccess: () => setCreating(false),
   })
 
-  const updateMutation = useMutation({
-    mutationFn: (input: { id: string; values: CharityForm }) =>
+  const updateMutation = useApiMutation({
+    mutationFn: (input: { id: string; values: EditCharityForm }) =>
       adminService.updateCharity(input.id, {
-        ...toPayload(input.values),
+        ...profilePayload(input.values),
         isActive: input.values.isActive,
       }),
-    onSuccess: () => {
-      message.success('Đã cập nhật tổ chức')
-      setEditing(null)
-      void invalidate()
-    },
-    onError: (error) => message.error(toApiError(error).message),
+    successMessage: 'Đã cập nhật tổ chức',
+    invalidate: [adminKeys.charities],
+    onSuccess: () => setEditing(null),
   })
 
-  const toggleMutation = useMutation({
+  const toggleMutation = useApiMutation({
     mutationFn: (charity: CharityView) =>
       adminService.updateCharity(charity.id, { isActive: !charity.isActive }),
-    onSuccess: () => {
-      message.success('Đã cập nhật trạng thái')
-      void invalidate()
-    },
-    onError: (error) => message.error(toApiError(error).message),
+    successMessage: 'Đã cập nhật trạng thái',
+    invalidate: [adminKeys.charities],
   })
+
+  const togglingId = toggleMutation.isPending ? toggleMutation.variables?.id : undefined
+
+  const openEdit = (charity: CharityView) => {
+    setEditing(charity)
+    editForm.setFieldsValue({
+      organizationName: charity.organizationName,
+      information: charity.information ?? '',
+      address: charity.address ?? '',
+      contactEmail: charity.email ?? '',
+      phone: charity.phone ?? '',
+      avatarUrl: charity.avatarUrl ?? '',
+      isActive: charity.isActive,
+    })
+  }
+
+  const openCreate = () => {
+    setCreating(true)
+    createForm.resetFields()
+  }
 
   const columns: TableProps<CharityView>['columns'] = [
     {
@@ -176,21 +182,7 @@ export default function CharitiesPage() {
       width: 150,
       render: (_, row) => (
         <Space>
-          <Button
-            size="small"
-            onClick={() => {
-              setEditing(row)
-              form.setFieldsValue({
-                organizationName: row.organizationName,
-                information: row.information ?? '',
-                address: row.address ?? '',
-                contactEmail: row.email ?? '',
-                phone: row.phone ?? '',
-                avatarUrl: row.avatarUrl ?? '',
-                isActive: row.isActive,
-              })
-            }}
-          >
+          <Button size="small" onClick={() => openEdit(row)}>
             Sửa
           </Button>
           <Popconfirm
@@ -199,7 +191,7 @@ export default function CharitiesPage() {
             cancelText="Huỷ"
             onConfirm={() => toggleMutation.mutate(row)}
           >
-            <Button size="small" danger={row.isActive}>
+            <Button size="small" danger={row.isActive} loading={togglingId === row.id}>
               {row.isActive ? 'Khoá' : 'Mở khoá'}
             </Button>
           </Popconfirm>
@@ -214,15 +206,7 @@ export default function CharitiesPage() {
         title="Tổ chức từ thiện"
         description="Tạo tài khoản tổ chức, cập nhật hồ sơ và trạng thái hoạt động"
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setCreating(true)
-              form.resetFields()
-              form.setFieldsValue({ isActive: true })
-            }}
-          >
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             Thêm tổ chức
           </Button>
         }
@@ -236,7 +220,7 @@ export default function CharitiesPage() {
             style={{ width: 280 }}
             onSearch={(value) => {
               setQ(value.trim())
-              setPage(1)
+              resetPage()
             }}
           />
           <Button icon={<ReloadOutlined />} onClick={() => void query.refetch()} loading={query.isFetching}>
@@ -245,9 +229,7 @@ export default function CharitiesPage() {
         </Space>
       </Card>
 
-      {query.isError ? (
-        <Alert type="error" showIcon title={toApiError(query.error).message} style={{ marginBottom: 16 }} />
-      ) : null}
+      <QueryError error={query.error} />
 
       <Card>
         <Table<CharityView>
@@ -256,17 +238,7 @@ export default function CharitiesPage() {
           dataSource={query.data?.items ?? []}
           columns={columns}
           scroll={{ x: 1100 }}
-          pagination={{
-            current: query.data?.meta.page ?? page,
-            pageSize: query.data?.meta.pageSize ?? pageSize,
-            total: query.data?.meta.total ?? 0,
-            showSizeChanger: true,
-            showTotal: (total) => `${formatNumber(total)} tổ chức`,
-            onChange: (nextPage, nextSize) => {
-              setPage(nextPage)
-              setPageSize(nextSize)
-            },
-          }}
+          pagination={pagination}
         />
       </Card>
 
@@ -275,13 +247,13 @@ export default function CharitiesPage() {
         open={creating}
         onCancel={() => setCreating(false)}
         onOk={() => {
-          void form.validateFields().then((values) => createMutation.mutate(values))
+          void createForm.validateFields().then((values) => createMutation.mutate(values))
         }}
         confirmLoading={createMutation.isPending}
         destroyOnHidden
         width={560}
       >
-        <Form<CharityForm> form={form} layout="vertical" preserve={false}>
+        <Form<CreateCharityForm> form={createForm} layout="vertical" preserve={false}>
           <Typography.Text type="secondary">
             Tài khoản đăng nhập sẽ được tạo cùng hồ sơ tổ chức.
           </Typography.Text>
@@ -310,28 +282,7 @@ export default function CharitiesPage() {
           >
             <Input.Password autoComplete="new-password" />
           </Form.Item>
-          <Form.Item
-            name="organizationName"
-            label="Tên tổ chức"
-            rules={[{ required: true, min: 2, max: 150, message: 'Nhập tên tổ chức' }]}
-          >
-            <Input maxLength={150} />
-          </Form.Item>
-          <Form.Item name="information" label="Giới thiệu">
-            <Input.TextArea rows={3} maxLength={5000} />
-          </Form.Item>
-          <Form.Item name="address" label="Địa chỉ">
-            <Input maxLength={200} />
-          </Form.Item>
-          <Form.Item name="contactEmail" label="Email liên hệ" rules={[{ type: 'email', message: 'Email không hợp lệ' }]}>
-            <Input maxLength={255} />
-          </Form.Item>
-          <Form.Item name="phone" label="Số điện thoại">
-            <Input maxLength={20} />
-          </Form.Item>
-          <Form.Item name="avatarUrl" label="Ảnh đại diện (URL)" rules={[{ type: 'url', message: 'URL không hợp lệ' }]}>
-            <Input maxLength={1000} />
-          </Form.Item>
+          <CharityProfileFields />
         </Form>
       </Modal>
 
@@ -340,7 +291,7 @@ export default function CharitiesPage() {
         open={editing !== null}
         onCancel={() => setEditing(null)}
         onOk={() => {
-          void form.validateFields().then((values) => {
+          void editForm.validateFields().then((values) => {
             if (editing) updateMutation.mutate({ id: editing.id, values })
           })
         }}
@@ -348,34 +299,50 @@ export default function CharitiesPage() {
         destroyOnHidden
         width={560}
       >
-        <Form<CharityForm> form={form} layout="vertical" preserve={false}>
-          <Form.Item
-            name="organizationName"
-            label="Tên tổ chức"
-            rules={[{ required: true, min: 2, max: 150, message: 'Nhập tên tổ chức' }]}
-          >
-            <Input maxLength={150} />
-          </Form.Item>
-          <Form.Item name="information" label="Giới thiệu">
-            <Input.TextArea rows={3} maxLength={5000} />
-          </Form.Item>
-          <Form.Item name="address" label="Địa chỉ">
-            <Input maxLength={200} />
-          </Form.Item>
-          <Form.Item name="contactEmail" label="Email liên hệ" rules={[{ type: 'email', message: 'Email không hợp lệ' }]}>
-            <Input maxLength={255} />
-          </Form.Item>
-          <Form.Item name="phone" label="Số điện thoại">
-            <Input maxLength={20} />
-          </Form.Item>
-          <Form.Item name="avatarUrl" label="Ảnh đại diện (URL)" rules={[{ type: 'url', message: 'URL không hợp lệ' }]}>
-            <Input maxLength={1000} />
-          </Form.Item>
+        <Form<EditCharityForm> form={editForm} layout="vertical" preserve={false}>
+          <CharityProfileFields />
           <Form.Item name="isActive" label="Đang hoạt động" valuePropName="checked">
             <Switch />
           </Form.Item>
         </Form>
       </Modal>
+    </>
+  )
+}
+
+function CharityProfileFields() {
+  return (
+    <>
+      <Form.Item
+        name="organizationName"
+        label="Tên tổ chức"
+        rules={[{ required: true, min: 2, max: 150, message: 'Nhập tên tổ chức' }]}
+      >
+        <Input maxLength={150} />
+      </Form.Item>
+      <Form.Item name="information" label="Giới thiệu">
+        <Input.TextArea rows={3} maxLength={5000} />
+      </Form.Item>
+      <Form.Item name="address" label="Địa chỉ">
+        <Input maxLength={200} />
+      </Form.Item>
+      <Form.Item
+        name="contactEmail"
+        label="Email liên hệ"
+        rules={[{ type: 'email', message: 'Email không hợp lệ' }]}
+      >
+        <Input maxLength={255} />
+      </Form.Item>
+      <Form.Item name="phone" label="Số điện thoại">
+        <Input maxLength={20} />
+      </Form.Item>
+      <Form.Item
+        name="avatarUrl"
+        label="Ảnh đại diện (URL)"
+        rules={[{ type: 'url', message: 'URL không hợp lệ' }]}
+      >
+        <Input maxLength={1000} />
+      </Form.Item>
     </>
   )
 }
