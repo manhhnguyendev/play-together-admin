@@ -54,7 +54,7 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
   unauthorizedHandler = handler
 }
 
-const http = axios.create({ baseURL: API_URL })
+export const http = axios.create({ baseURL: API_URL })
 const raw = axios.create({ baseURL: API_URL })
 
 http.interceptors.request.use((config) => {
