@@ -39,6 +39,24 @@ file with `npm run openapi:export` in `play-together-be` while the API is runnin
 run `npm run api:generate`. Generated code is excluded from linting and is safe to delete
 and regenerate.
 
+## Docker
+
+The image is a two-stage build (Vite build, then nginx) that serves the SPA and proxies
+`/api/` to the `api` service, so the browser stays same-origin and no CORS setup is needed.
+
+```bash
+docker build -t play-together-admin --build-arg VITE_API_URL=/api/v2 .
+docker run -p 8080:80 play-together-admin   # expects an `api` host on port 3000
+```
+
+`VITE_API_URL` is baked at build time because Vite inlines `VITE_*` variables; rebuild after
+changing it. In practice the stack is started from the root repo's `docker-compose.yml`, which
+wires this container to the API and PostgreSQL.
+
+On Windows, Git Bash rewrites a leading-slash value into a Windows path, so a manual build needs
+`MSYS_NO_PATHCONV=1 VITE_API_URL=/api/v2 docker build ...` (compose passes build args itself, so
+`docker compose build admin` is unaffected).
+
 ## Notes
 
 - Sign-in verifies the account through `GET /admin/stats`; a `403` means the account is not an admin,
