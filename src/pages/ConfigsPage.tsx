@@ -79,6 +79,21 @@ export default function ConfigsPage() {
 
   const deletingId = deleteMutation.isPending ? deleteMutation.variables : undefined
 
+  const startCreate = (row?: ResolvedConfig) => {
+    setCreating(true)
+    createForm.resetFields()
+    createForm.setFieldsValue(
+      row
+        ? {
+            key: row.key,
+            title: row.title,
+            value: row.value,
+            description: row.description ?? '',
+          }
+        : { value: 0 },
+    )
+  }
+
   const columns: TableProps<ResolvedConfig>['columns'] = [
     {
       title: 'Khoá',
@@ -118,7 +133,7 @@ export default function ConfigsPage() {
     {
       title: '',
       key: 'actions',
-      width: 120,
+      width: 150,
       render: (_, row) =>
         row.id ? (
           <Space>
@@ -148,7 +163,9 @@ export default function ConfigsPage() {
             </Popconfirm>
           </Space>
         ) : (
-          <Typography.Text type="secondary">Chưa có bản ghi</Typography.Text>
+          <Button size="small" icon={<PlusOutlined />} onClick={() => startCreate(row)}>
+            Tạo bản ghi
+          </Button>
         ),
     },
   ]
@@ -162,11 +179,7 @@ export default function ConfigsPage() {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => {
-              setCreating(true)
-              createForm.resetFields()
-              createForm.setFieldsValue({ value: 0 })
-            }}
+            onClick={() => startCreate()}
           >
             Thêm cấu hình
           </Button>
@@ -245,7 +258,12 @@ export default function ConfigsPage() {
           >
             <Input maxLength={100} />
           </Form.Item>
-          <Form.Item name="no" label="Thứ tự" rules={[{ required: true, message: 'Nhập thứ tự' }]}>
+          <Form.Item
+            name="no"
+            label="Thứ tự"
+            rules={[{ required: true, message: 'Nhập thứ tự' }]}
+            extra="Chọn số thứ tự chưa dùng (1–1000)"
+          >
             <InputNumber min={1} max={1000} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, min: 2, max: 150 }]}>

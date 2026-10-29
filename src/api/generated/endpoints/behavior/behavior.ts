@@ -6,6 +6,8 @@
  * OpenAPI spec version: 2.0.0
  */
 import type {
+  BehaviorControllerMyHistoryParams,
+  BehaviorHistoryPage,
   BehaviorView
 } from '../../models';
 
@@ -25,6 +27,18 @@ export const behaviorControllerMine = (
       );
     }
   /**
+ * @summary My behavior point history, newest first
+ */
+export const behaviorControllerMyHistory = (
+    params?: BehaviorControllerMyHistoryParams,
+ ) => {
+      return customInstance<BehaviorHistoryPage>(
+      {url: `/api/v2/users/me/behavior/history`, method: 'GET',
+        params
+    },
+      );
+    }
+  /**
  * @summary Behavior points of a user
  */
 export const behaviorControllerByUser = (
@@ -36,4 +50,5 @@ export const behaviorControllerByUser = (
       );
     }
   export type BehaviorControllerMineResult = NonNullable<Awaited<ReturnType<typeof behaviorControllerMine>>>
+export type BehaviorControllerMyHistoryResult = NonNullable<Awaited<ReturnType<typeof behaviorControllerMyHistory>>>
 export type BehaviorControllerByUserResult = NonNullable<Awaited<ReturnType<typeof behaviorControllerByUser>>>

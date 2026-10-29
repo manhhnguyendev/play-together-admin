@@ -1,6 +1,10 @@
 {
   "name": "play-together-admin",
   "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "version": "0.0.0",
   "type": "module",
   "scripts": {

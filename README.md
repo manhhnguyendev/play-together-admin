@@ -43,7 +43,19 @@ and regenerate.
 
 - Sign-in verifies the account through `GET /admin/stats`; a `403` means the account is not an admin,
   so the tokens are discarded and the console stays on the login page.
-- The generated client is available for new code; the existing pages still use the handwritten
-  helpers in `src/api/client.ts`.
 - The access token lives in `localStorage`; a `401` triggers a single-flight refresh against
-  `/auth/refresh` and the failed request is retried once.
+  `/auth/refresh` and the failed request is retried once. `src/api/client.ts` only owns the axios
+  instance, the token session and `ApiError` — no endpoint helpers live there.
+- Every request goes through the generated Orval client, re-exported by the facades in
+  `src/api/admin.ts` (`authService`, `adminService`, `catalogService`, `configService`) together with
+  the generated models from `src/api/types.ts`.
+- Lists use `usePagedQuery`, writes use `useApiMutation`; both take their cache keys from
+  `src/api/keys.ts` (`adminKeys`, `catalogKeys`, `publicConfigKey`) so a mutation invalidates every
+  affected list at once. `QueryError` renders `ApiError` messages consistently.
+- Routes are split with React Router's route-level `lazy` in `src/app/router.tsx`: each page gets its
+  own chunk (the largest page is ~36 kB) and the entry chunk is ~250 kB instead of the previous
+  single 1.38 MB bundle. Ant Design still accounts for a ~590 kB shared vendor chunk on first load.
+
+## License
+
+MIT — see `LICENSE`. Student capstone project; verify third-party assets before commercial use.

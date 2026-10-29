@@ -15,6 +15,7 @@ import type {
   CreateAvailabilityDto,
   FavoriteGameItemDto,
   PlayerModeDto,
+  UpdateAvailabilityDto,
   UpdateProfileDto,
   UpdateSkillRankDto,
   UpdateStatusDto,
@@ -239,6 +240,20 @@ export const usersControllerAddAvailability = (
       );
     }
   /**
+ * @summary Update an availability window
+ */
+export const usersControllerUpdateAvailability = (
+    windowId: string,
+    updateAvailabilityDto: UpdateAvailabilityDto,
+ ) => {
+      return customInstance<AvailabilityWindowView>(
+      {url: `/api/v2/users/me/availability/${windowId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateAvailabilityDto
+    },
+      );
+    }
+  /**
  * @summary Remove an availability window
  */
 export const usersControllerRemoveAvailability = (
@@ -334,6 +349,7 @@ export type UsersControllerAddImageResult = NonNullable<Awaited<ReturnType<typeo
 export type UsersControllerRemoveImageResult = NonNullable<Awaited<ReturnType<typeof usersControllerRemoveImage>>>
 export type UsersControllerAvailabilityResult = NonNullable<Awaited<ReturnType<typeof usersControllerAvailability>>>
 export type UsersControllerAddAvailabilityResult = NonNullable<Awaited<ReturnType<typeof usersControllerAddAvailability>>>
+export type UsersControllerUpdateAvailabilityResult = NonNullable<Awaited<ReturnType<typeof usersControllerUpdateAvailability>>>
 export type UsersControllerRemoveAvailabilityResult = NonNullable<Awaited<ReturnType<typeof usersControllerRemoveAvailability>>>
 export type UsersControllerBlocksResult = NonNullable<Awaited<ReturnType<typeof usersControllerBlocks>>>
 export type UsersControllerBlockResult = NonNullable<Awaited<ReturnType<typeof usersControllerBlock>>>

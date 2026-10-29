@@ -41,8 +41,12 @@ export default function DashboardPage() {
         <Col xs={24} md={12} xl={6}>
           <Card loading={query.isLoading} title="Người dùng">
             <Statistic value={stats?.users.total ?? 0} formatter={(value) => formatNumber(Number(value))} />
-            <Typography.Text type="secondary">
+            <Typography.Text type="secondary" style={{ display: 'block' }}>
               {formatNumber(stats?.users.active ?? 0)} hoạt động · {formatNumber(stats?.users.players ?? 0)} người chơi
+            </Typography.Text>
+            <Typography.Text type="secondary" style={{ display: 'block' }}>
+              {formatNumber(stats?.users.charities ?? 0)} tổ chức từ thiện ·{' '}
+              {formatNumber(stats?.users.admins ?? 0)} quản trị viên
             </Typography.Text>
           </Card>
         </Col>
