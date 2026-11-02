@@ -1,21 +1,25 @@
 import { useQuery } from '@tanstack/react-query'
 import { Alert, Card, Space, Switch, Tag, Typography } from 'antd'
+import { useState } from 'react'
 import { adminService, configService } from '@/api/admin'
 import { adminKeys, publicConfigKey } from '@/api/keys'
+import { ConfirmReasonModal } from '@/components/ConfirmReasonModal'
 import { PageHeader } from '@/components/PageHeader'
 import { QueryError } from '@/components/QueryError'
 import { useApiMutation } from '@/hooks/useApiMutation'
 
 export default function MaintenancePage() {
+  const [next, setNext] = useState<boolean | null>(null)
+
   const query = useQuery({ queryKey: publicConfigKey, queryFn: configService.public })
 
   const enabled = (query.data?.maintenanceMode ?? 0) > 0
 
   const mutation = useApiMutation({
-    mutationFn: (next: boolean) => adminService.maintenance({ enabled: next }),
-    successMessage: (result) =>
-      result.enabled ? 'Đã bật chế độ bảo trì' : 'Đã tắt chế độ bảo trì',
+    mutationFn: (input: { enabled: boolean; reason: string }) => adminService.maintenance(input),
+    successMessage: (result) => (result.enabled ? 'Đã bật chế độ bảo trì' : 'Đã tắt chế độ bảo trì'),
     invalidate: [publicConfigKey, adminKeys.configs],
+    onSuccess: () => setNext(null),
   })
 
   return (
@@ -35,11 +39,13 @@ export default function MaintenancePage() {
             <Switch
               checked={enabled}
               loading={mutation.isPending}
-              onChange={(checked) => mutation.mutate(checked)}
+              onChange={(checked) => setNext(checked)}
               checkedChildren="Bật"
               unCheckedChildren="Tắt"
             />
-            <Typography.Text>{enabled ? 'Tắt bảo trì để mở lại hệ thống' : 'Bật bảo trì để tạm khoá hệ thống'}</Typography.Text>
+            <Typography.Text>
+              {enabled ? 'Tắt bảo trì để mở lại hệ thống' : 'Bật bảo trì để tạm khoá hệ thống'}
+            </Typography.Text>
           </Space>
 
           <Alert
@@ -49,6 +55,29 @@ export default function MaintenancePage() {
           />
         </Space>
       </Card>
+
+      <ConfirmReasonModal
+        open={next !== null}
+        title={next ? 'Bật chế độ bảo trì?' : 'Tắt chế độ bảo trì?'}
+        danger={Boolean(next)}
+        loading={mutation.isPending}
+        okText={next ? 'Bật bảo trì' : 'Tắt bảo trì'}
+        reasonLabel="Lý do"
+        placeholder={next ? 'Cập nhật cấu hình thanh toán, dự kiến 20 phút' : 'Hệ thống đã kiểm tra xong'}
+        description={
+          next ? (
+            <span>
+              Người dùng sẽ không đặt được đơn mới cho tới khi tắt bảo trì. Đơn đang chạy vẫn được giữ.
+            </span>
+          ) : (
+            <span>Hệ thống mở lại cho mọi tài khoản ngay khi tắt.</span>
+          )
+        }
+        onCancel={() => setNext(null)}
+        onConfirm={(reason) => {
+          if (next !== null) mutation.mutate({ enabled: next, reason })
+        }}
+      />
     </>
   )
 }

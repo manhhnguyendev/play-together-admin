@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Form, Input, Result } from 'antd'
+import { Alert, App, Button, Card, Form, Input, Result } from 'antd'
 import { useState } from 'react'
 import { adminService } from '@/api/admin'
 import { PageHeader } from '@/components/PageHeader'
@@ -9,9 +9,11 @@ interface BroadcastForm {
   title: string
   body: string
   referenceUrl?: string
+  reason: string
 }
 
 export default function BroadcastPage() {
+  const { modal } = App.useApp()
   const [form] = Form.useForm<BroadcastForm>()
   const [recipients, setRecipients] = useState<number | null>(null)
 
@@ -21,6 +23,7 @@ export default function BroadcastPage() {
         title: values.title.trim(),
         body: values.body.trim(),
         referenceUrl: trimOrUndefined(values.referenceUrl),
+        reason: values.reason.trim(),
       }),
     successMessage: (result) => `Đã gửi tới ${result.recipients} người dùng`,
     onSuccess: (result) => {
@@ -28,6 +31,26 @@ export default function BroadcastPage() {
       form.resetFields()
     },
   })
+
+  /** A push that cannot be recalled deserves one last look at what will be sent. */
+  const askBeforeSending = (values: BroadcastForm) => {
+    modal.confirm({
+      title: 'Gửi thông báo này cho mọi tài khoản đang hoạt động?',
+      width: 520,
+      okText: 'Gửi ngay',
+      cancelText: 'Quay lại sửa',
+      content: (
+        <div>
+          <p style={{ marginBottom: 4 }}>
+            <strong>{values.title.trim()}</strong>
+          </p>
+          <p style={{ marginBottom: 8 }}>{values.body.trim()}</p>
+          <p style={{ marginBottom: 0, color: '#8c8c8c' }}>Không thể thu hồi sau khi gửi.</p>
+        </div>
+      ),
+      onOk: () => mutation.mutate(values),
+    })
+  }
 
   return (
     <>
@@ -52,7 +75,7 @@ export default function BroadcastPage() {
             style={{ marginBottom: 16 }}
             title="Thông báo gửi ngay và không thể thu hồi. Kiểm tra kỹ nội dung trước khi gửi."
           />
-          <Form<BroadcastForm> form={form} layout="vertical" onFinish={(values) => mutation.mutate(values)}>
+          <Form<BroadcastForm> form={form} layout="vertical" disabled={mutation.isPending} onFinish={askBeforeSending}>
             <Form.Item
               name="title"
               label="Tiêu đề"
@@ -73,6 +96,14 @@ export default function BroadcastPage() {
               rules={[{ max: 500, message: 'Tối đa 500 ký tự' }]}
             >
               <Input maxLength={500} placeholder="/notifications hoặc /charity" />
+            </Form.Item>
+            <Form.Item
+              name="reason"
+              label="Lý do gửi"
+              rules={[{ required: true, min: 3, max: 500, message: 'Nêu lý do từ 3 đến 500 ký tự' }]}
+              extra="Lưu vào nhật ký thao tác để người sau biết vì sao gửi."
+            >
+              <Input.TextArea rows={2} maxLength={500} showCount placeholder="Thông báo lịch bảo trì định kỳ" />
             </Form.Item>
             <Button type="primary" htmlType="submit" loading={mutation.isPending}>
               Gửi thông báo

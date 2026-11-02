@@ -1,6 +1,7 @@
 export * from './admin/admin';
 export * from './admin-catalog/admin-catalog';
 export * from './admin-configs/admin-configs';
+export * from './admin-ops/admin-ops';
 export * from './auth/auth';
 export * from './behavior/behavior';
 export * from './catalog/catalog';

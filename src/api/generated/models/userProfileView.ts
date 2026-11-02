@@ -9,6 +9,7 @@ import type { AvailabilityWindowView } from './availabilityWindowView';
 import type { BehaviorView } from './behaviorView';
 import type { UserHobbyView } from './userHobbyView';
 import type { UserImageView } from './userImageView';
+import type { UserProfileViewAdminRole } from './userProfileViewAdminRole';
 import type { UserProfileViewGender } from './userProfileViewGender';
 import type { UserProfileViewRole } from './userProfileViewRole';
 import type { UserProfileViewStatus } from './userProfileViewStatus';
@@ -28,6 +29,8 @@ export interface UserProfileView {
   bio?: string | null;
   status: UserProfileViewStatus;
   role: UserProfileViewRole;
+  /** @nullable */
+  adminRole?: UserProfileViewAdminRole;
   isActive: boolean;
   isPlayer: boolean;
   /** VND per hour */

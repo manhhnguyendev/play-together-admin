@@ -112,18 +112,11 @@ function GamesTab() {
   const openCreate = () => {
     setEditing(null)
     setModalOpen(true)
-    form.resetFields()
   }
 
   const openEdit = (game: GameView) => {
     setEditing(game)
     setModalOpen(true)
-    form.setFieldsValue({
-      name: game.name,
-      displayName: game.displayName ?? '',
-      otherNames: game.otherNames ?? '',
-      gameTypeIds: game.types.map((item) => item.id),
-    })
   }
 
   const columns: TableProps<GameView>['columns'] = [
@@ -245,7 +238,21 @@ function GamesTab() {
         destroyOnHidden
         width={520}
       >
-        <Form<GameForm> form={form} layout="vertical" preserve={false}>
+        <Form<GameForm>
+          form={form}
+          layout="vertical"
+          preserve={false}
+          initialValues={
+            editing
+              ? {
+                  name: editing.name,
+                  displayName: editing.displayName ?? '',
+                  otherNames: editing.otherNames ?? '',
+                  gameTypeIds: editing.types.map((item) => item.id),
+                }
+              : undefined
+          }
+        >
           <Form.Item name="name" label="Tên game" rules={[{ required: true, min: 2, max: 100 }]}>
             <Input maxLength={100} />
           </Form.Item>
@@ -459,11 +466,6 @@ function GameTypesTab() {
             onClick={() => {
               setEditing(row)
               setModalOpen(true)
-              form.setFieldsValue({
-                name: row.name,
-                shortName: row.shortName ?? '',
-                description: row.description ?? '',
-              })
             }}
           />
           <Popconfirm
@@ -531,7 +533,20 @@ function GameTypesTab() {
         confirmLoading={saveMutation.isPending}
         destroyOnHidden
       >
-        <Form<GameTypeForm> form={form} layout="vertical" preserve={false}>
+        <Form<GameTypeForm>
+          form={form}
+          layout="vertical"
+          preserve={false}
+          initialValues={
+            editing
+              ? {
+                  name: editing.name,
+                  shortName: editing.shortName ?? '',
+                  description: editing.description ?? '',
+                }
+              : undefined
+          }
+        >
           <Form.Item name="name" label="Tên" rules={[{ required: true, min: 2, max: 100 }]}>
             <Input maxLength={100} />
           </Form.Item>

@@ -21,8 +21,28 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        path: 'orders',
+        lazy: async () => ({ Component: (await import('@/pages/OrdersPage')).default }),
+      },
+      {
+        path: 'orders/:id',
+        lazy: async () => ({ Component: (await import('@/pages/OrderDetailPage')).default }),
+      },
+      {
         path: 'users',
         lazy: async () => ({ Component: (await import('@/pages/UsersPage')).default }),
+      },
+      {
+        path: 'users/:id',
+        lazy: async () => ({ Component: (await import('@/pages/UserDetailPage')).default }),
+      },
+      {
+        path: 'money',
+        lazy: async () => ({ Component: (await import('@/pages/MoneyPage')).default }),
+      },
+      {
+        path: 'audit',
+        lazy: async () => ({ Component: (await import('@/pages/AuditLogPage')).default }),
       },
       {
         path: 'withdrawals',

@@ -6,6 +6,8 @@
  * OpenAPI spec version: 2.0.0
  */
 import type { OrderGameRefView } from './orderGameRefView';
+import type { OrderViewCloseReason } from './orderViewCloseReason';
+import type { OrderViewEndedEarlyBy } from './orderViewEndedEarlyBy';
 import type { OrderViewEscrowStatus } from './orderViewEscrowStatus';
 import type { OrderViewStatus } from './orderViewStatus';
 import type { UserSummary } from './userSummary';
@@ -28,6 +30,16 @@ export interface OrderView {
   message: string;
   /** @nullable */
   reason: string | null;
+  /**
+     * Set exactly when status is CLOSED: why the order ended without a session
+     * @nullable
+     */
+  closeReason: OrderViewCloseReason;
+  /**
+     * Set exactly when status is ENDED_EARLY: who stopped the session
+     * @nullable
+     */
+  endedEarlyBy: OrderViewEndedEarlyBy;
   respondBy: string;
   /** @nullable */
   startsAt: string | null;
@@ -35,6 +47,16 @@ export interface OrderView {
   scheduledEndAt: string | null;
   /** @nullable */
   endedAt: string | null;
+  /**
+     * When this order entered DISPUTED
+     * @nullable
+     */
+  disputedAt: string | null;
+  /**
+     * When the payout is released automatically if nobody objects. Only set while DISPUTED.
+     * @nullable
+     */
+  disputeDeadlineAt: string | null;
   createdAt: string;
   updatedAt: string;
   hirer: UserSummary;

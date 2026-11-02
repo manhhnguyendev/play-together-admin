@@ -19,4 +19,10 @@ export interface BroadcastNotificationDto {
   body: string;
   /** @maxLength 500 */
   referenceUrl?: string;
+  /**
+     * Why this is being sent; recorded in the audit log
+     * @minLength 3
+     * @maxLength 500
+     */
+  reason: string;
 }

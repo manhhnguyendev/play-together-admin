@@ -6,6 +6,7 @@
  * OpenAPI spec version: 2.0.0
  */
 import type {
+  CancelOrderDto,
   CreateOrderDto,
   EndEarlyDto,
   OrderHistoryItemView,
@@ -105,13 +106,16 @@ export const ordersControllerReject = (
       );
     }
   /**
- * @summary Cancel a pending hire request (hirer only)
+ * @summary Cancel a request, or a booking that has not started, with a full refund
  */
 export const ordersControllerCancel = (
     id: string,
+    cancelOrderDto: CancelOrderDto,
  ) => {
       return customInstance<OrderView>(
-      {url: `/api/v2/orders/${id}/cancel`, method: 'POST'
+      {url: `/api/v2/orders/${id}/cancel`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: cancelOrderDto
     },
       );
     }

@@ -23,4 +23,9 @@ export interface UpdateConfigDto {
   value?: number;
   /** @maxLength 1000 */
   description?: string;
+  /**
+     * Why the value changed; kept in the audit log
+     * @maxLength 500
+     */
+  reason?: string;
 }

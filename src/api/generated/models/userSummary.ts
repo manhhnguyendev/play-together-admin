@@ -5,6 +5,7 @@
  * Play Together v2 - hire-a-gamer marketplace. All errors use RFC 7807 application/problem+json responses.
  * OpenAPI spec version: 2.0.0
  */
+import type { UserSummaryAdminRole } from './userSummaryAdminRole';
 import type { UserSummaryGender } from './userSummaryGender';
 import type { UserSummaryRole } from './userSummaryRole';
 import type { UserSummaryStatus } from './userSummaryStatus';
@@ -23,6 +24,8 @@ export interface UserSummary {
   bio?: string | null;
   status: UserSummaryStatus;
   role: UserSummaryRole;
+  /** @nullable */
+  adminRole?: UserSummaryAdminRole;
   isActive: boolean;
   isPlayer: boolean;
   /** VND per hour */

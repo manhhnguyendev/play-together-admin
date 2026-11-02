@@ -17,6 +17,10 @@ export interface AdjustBehaviorDto {
      * @maximum 100
      */
   satisfaction: number;
-  /** @maxLength 500 */
-  note?: string;
+  /**
+     * Required: a manual points change needs a reason
+     * @minLength 3
+     * @maxLength 500
+     */
+  note: string;
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { adminService, authService } from '@/api/admin'
+import { adminService, authService, opsService } from '@/api/admin'
 import { ApiError, getSessionTokens, setSessionTokens, setUnauthorizedHandler } from '@/api/client'
 import type { UserSummary } from '@/api/types'
 
@@ -35,6 +35,22 @@ let bootstrapped = false
 
 const FORBIDDEN_MESSAGE = 'Tài khoản này không có quyền quản trị'
 
+/**
+ * The tier is re-read on every boot instead of trusting what is in storage: an
+ * account saved before the split, or re-tiered while the tab was closed, must
+ * not keep opening pages the API has since stopped answering. Reading your own
+ * dossier needs a tier, so a refusal is the answer that there is none.
+ */
+async function refreshAccount(stored: UserSummary | null): Promise<UserSummary | null> {
+  if (!stored?.id) return null
+  try {
+    const dossier = await opsService.user(stored.id)
+    return dossier.account
+  } catch {
+    return { ...stored, adminRole: null }
+  }
+}
+
 export const useAdminStore = create<AdminState>((set) => ({
   status: 'loading',
   user: readStoredUser(),
@@ -52,7 +68,6 @@ export const useAdminStore = create<AdminState>((set) => ({
 
     try {
       await adminService.stats()
-      set({ status: 'signedIn' })
     } catch (error) {
       const status = error instanceof ApiError ? error.status : 0
       setSessionTokens(null)
@@ -62,7 +77,12 @@ export const useAdminStore = create<AdminState>((set) => ({
         user: null,
         error: status === 403 ? FORBIDDEN_MESSAGE : null,
       })
+      return
     }
+
+    const account = await refreshAccount(readStoredUser())
+    storeUser(account)
+    set({ status: 'signedIn', user: account })
   },
 
   signIn: async (email, password) => {

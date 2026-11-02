@@ -62,17 +62,56 @@ http.interceptors.request.use((config) => {
   return config
 })
 
+/**
+ * The API keeps `detail` in English so one payload serves every client; the
+ * console owns the operator-facing wording for the codes a back-office screen
+ * can actually hit. Anything unlisted falls back to the server text.
+ */
+const CODE_MESSAGES: Record<string, string> = {
+  validation_failed: 'Dữ liệu chưa hợp lệ.',
+  forbidden: 'Bạn không có quyền thực hiện thao tác này.',
+  admin_role_required: 'Thao tác này cần quyền Kiểm duyệt hoặc Tài chính.',
+  last_super_admin: 'Phải còn ít nhất một quản trị viên cao nhất đang hoạt động.',
+  reason_required: 'Cần nêu lý do trước khi lưu.',
+  not_found: 'Không tìm thấy bản ghi, có thể nó đã bị xoá.',
+  user_not_found: 'Không tìm thấy tài khoản này.',
+  order_not_found: 'Không tìm thấy đơn thuê này.',
+  withdrawal_not_found: 'Không tìm thấy yêu cầu rút tiền này.',
+  report_not_found: 'Không tìm thấy báo cáo này.',
+  rating_not_found: 'Không tìm thấy đánh giá này.',
+  charity_not_found: 'Không tìm thấy tổ chức từ thiện này.',
+  config_not_found: 'Không tìm thấy cấu hình này.',
+  feedback_not_found: 'Không tìm thấy phản hồi này.',
+  game_not_found: 'Không tìm thấy game này.',
+  rank_not_found: 'Không tìm thấy hạng game này.',
+  already_resolved: 'Bản ghi này đã được xử lý trước đó.',
+  conflict: 'Trạng thái hiện tại không cho phép thao tác này. Hãy làm mới trang.',
+  reference_conflict: 'Bản ghi đang được dữ liệu khác tham chiếu nên không xoá được.',
+  constraint_violation: 'Thay đổi vượt ngoài ngưỡng cho phép của hệ thống.',
+  invalid_credentials: 'Email hoặc mật khẩu không đúng.',
+  account_disabled: 'Tài khoản này đã bị khoá.',
+  account_maintained: 'Hệ thống đang bảo trì, vui lòng thử lại sau.',
+  email_taken: 'Email này đã có tài khoản sử dụng.',
+  internal_error: 'Hệ thống gặp lỗi khi xử lý yêu cầu. Vui lòng thử lại.',
+}
+
+const joinErrors = (errors: Record<string, string[]> | string[] | undefined): string | undefined => {
+  if (!errors) return undefined
+  if (Array.isArray(errors)) return errors.join('; ')
+  const entries = Object.entries(errors)
+  return entries.length ? entries.map(([field, messages]) => `${field}: ${messages.join(', ')}`).join('; ') : undefined
+}
+
 export function toApiError(error: unknown): ApiError {
   if (error instanceof ApiError) return error
   if (error instanceof AxiosError) {
     const details = error.response?.data as ProblemDetails | undefined
     const status = error.response?.status ?? 0
-    const fieldErrors = details?.errors
-      ? Object.entries(details.errors)
-          .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
-          .join('; ')
-      : undefined
+    const codeMessage = details?.code ? CODE_MESSAGES[details.code] : undefined
+    const fieldErrors = joinErrors(details?.details?.errors) ?? joinErrors(details?.errors)
     const message =
+      (codeMessage && fieldErrors ? `${codeMessage} ${fieldErrors}` : undefined) ??
+      codeMessage ??
       fieldErrors ??
       details?.detail ??
       details?.message ??

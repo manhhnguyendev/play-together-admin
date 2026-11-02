@@ -9,6 +9,10 @@ import type { ResolveWithdrawalDtoStatus } from './resolveWithdrawalDtoStatus';
 
 export interface ResolveWithdrawalDto {
   status: ResolveWithdrawalDtoStatus;
-  /** @maxLength 255 */
-  note?: string;
+  /**
+     * Required: a payout decision moves real money and is audited with this note
+     * @minLength 3
+     * @maxLength 255
+     */
+  note: string;
 }

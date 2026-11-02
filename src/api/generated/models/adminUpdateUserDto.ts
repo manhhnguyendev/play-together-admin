@@ -5,6 +5,7 @@
  * Play Together v2 - hire-a-gamer marketplace. All errors use RFC 7807 application/problem+json responses.
  * OpenAPI spec version: 2.0.0
  */
+import type { AdminUpdateUserDtoAdminRole } from './adminUpdateUserDtoAdminRole';
 import type { AdminUpdateUserDtoRole } from './adminUpdateUserDtoRole';
 import type { AdminUpdateUserDtoStatus } from './adminUpdateUserDtoStatus';
 
@@ -12,5 +13,13 @@ export interface AdminUpdateUserDto {
   isActive?: boolean;
   isPlayer?: boolean;
   role?: AdminUpdateUserDtoRole;
+  /** @nullable */
+  adminRole?: AdminUpdateUserDtoAdminRole;
   status?: AdminUpdateUserDtoStatus;
+  /**
+     * Required when locking, unlocking or changing either role
+     * @minLength 3
+     * @maxLength 500
+     */
+  reason?: string;
 }

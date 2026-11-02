@@ -8,4 +8,9 @@
 
 export interface ToggleMaintenanceDto {
   enabled: boolean;
+  /**
+     * Recorded in the audit log next to the switch
+     * @maxLength 500
+     */
+  reason?: string;
 }

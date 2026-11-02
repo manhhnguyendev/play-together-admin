@@ -1,31 +1,41 @@
 import { Button, Card, Form, Input, Modal, Radio, Rate, Select, Space, Table, Typography } from 'antd'
 import type { TableProps } from 'antd'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { adminService } from '@/api/admin'
 import { adminKeys } from '@/api/keys'
 import { FLAGGED_RATING_STATUSES, type FlaggedRatingStatus, type RatingDto } from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
+import { PartyLink } from '@/components/PartyLink'
 import { QueryError } from '@/components/QueryError'
 import { StatusTag } from '@/components/StatusTag'
 import { useApiMutation } from '@/hooks/useApiMutation'
 import { usePagedQuery } from '@/hooks/usePagedQuery'
 import { formatDateTime, formatNumber } from '@/lib/format'
+import { statusOptions } from '@/lib/labels'
 
 interface ResolveForm {
   decision: 'UPHELD' | 'DISMISSED'
   note?: string
 }
 
-const STATUS_OPTIONS = FLAGGED_RATING_STATUSES.map((value) => ({ value, label: value }))
+const STATUS_OPTIONS = statusOptions(FLAGGED_RATING_STATUSES)
 
 export default function FlaggedRatingsPage() {
-  const [status, setStatus] = useState<FlaggedRatingStatus | undefined>('FLAGGED')
   const [target, setTarget] = useState<RatingDto | null>(null)
   const [form] = Form.useForm<ResolveForm>()
 
-  const { query, pagination, resetPage } = usePagedQuery<RatingDto>({
-    key: [...adminKeys.flaggedRatings, { status }],
-    fetcher: ({ page, pageSize }) => adminService.flaggedRatings({ page, pageSize, status }),
+  const { query, pagination, filters, setFilter } = usePagedQuery<RatingDto, 'status'>({
+    key: [...adminKeys.flaggedRatings],
+    filterNames: ['status'],
+    fetcher: ({ page, pageSize, filters: f }) =>
+      adminService.flaggedRatings({
+        page,
+        pageSize,
+        // The queue is the flagged list by default; an operator picks the other
+        // statuses from the same control rather than clearing it.
+        status: (f.status ?? 'FLAGGED') as FlaggedRatingStatus,
+      }),
     totalLabel: (total) => `${formatNumber(total)} đánh giá`,
   })
 
@@ -38,8 +48,24 @@ export default function FlaggedRatingsPage() {
   })
 
   const columns: TableProps<RatingDto>['columns'] = [
-    { title: 'Người đánh giá', dataIndex: ['rater', 'name'], width: 160, render: (value?: string) => value ?? '—' },
-    { title: 'Người nhận', dataIndex: ['ratee', 'name'], width: 160, render: (value?: string) => value ?? '—' },
+    {
+      title: 'Người đánh giá',
+      dataIndex: ['rater', 'name'],
+      width: 160,
+      render: (_, row) => <PartyLink id={row.rater?.id} name={row.rater?.name} />,
+    },
+    {
+      title: 'Người nhận',
+      dataIndex: ['ratee', 'name'],
+      width: 160,
+      render: (_, row) => <PartyLink id={row.ratee?.id} name={row.ratee?.name} />,
+    },
+    {
+      title: 'Đơn',
+      dataIndex: 'orderId',
+      width: 90,
+      render: (value: string) => <Link to={`/orders/${value}`}>Xem</Link>,
+    },
     {
       title: 'Số sao',
       dataIndex: 'rate',
@@ -72,7 +98,6 @@ export default function FlaggedRatingsPage() {
             type="primary"
             onClick={() => {
               setTarget(row)
-              form.setFieldsValue({ decision: 'UPHELD', note: '' })
             }}
           >
             Xử lý
@@ -91,14 +116,10 @@ export default function FlaggedRatingsPage() {
       <Card style={{ marginBottom: 16 }}>
         <Space wrap>
           <Select
-            allowClear
             placeholder="Trạng thái"
             style={{ width: 170 }}
-            value={status}
-            onChange={(value) => {
-              setStatus(value)
-              resetPage()
-            }}
+            value={filters.status ?? 'FLAGGED'}
+            onChange={(value) => setFilter('status', value)}
             options={STATUS_OPTIONS}
           />
         </Space>
@@ -138,7 +159,12 @@ export default function FlaggedRatingsPage() {
           </div>
         ) : null}
 
-        <Form<ResolveForm> form={form} layout="vertical" preserve={false}>
+        <Form<ResolveForm>
+          form={form}
+          layout="vertical"
+          preserve={false}
+          initialValues={{ decision: 'UPHELD', note: '' }}
+        >
           <Form.Item name="decision" label="Quyết định" rules={[{ required: true }]}>
             <Radio.Group
               options={[

@@ -5,11 +5,13 @@ import { adminService } from '@/api/admin'
 import { adminKeys } from '@/api/keys'
 import { FEEDBACK_STATUSES, type AdminFeedbackView, type FeedbackStatus } from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
+import { PartyLink } from '@/components/PartyLink'
 import { QueryError } from '@/components/QueryError'
 import { StatusTag } from '@/components/StatusTag'
 import { useApiMutation } from '@/hooks/useApiMutation'
 import { usePagedQuery } from '@/hooks/usePagedQuery'
 import { formatDateTime, formatNumber } from '@/lib/format'
+import { statusOptions } from '@/lib/labels'
 
 interface ResolveForm {
   decision: 'APPROVED' | 'REJECTED'
@@ -23,20 +25,29 @@ const TYPE_LABEL: Record<AdminFeedbackView['type'], string> = {
   OTHER: 'Khác',
 }
 
-const STATUS_OPTIONS = FEEDBACK_STATUSES.map((value) => ({ value, label: value }))
+const FILTERS = ['status', 'q'] as const
 
 export default function FeedbackPage() {
-  const [status, setStatus] = useState<FeedbackStatus | undefined>('PENDING')
-  const [q, setQ] = useState('')
   const [target, setTarget] = useState<AdminFeedbackView | null>(null)
   const [form] = Form.useForm<ResolveForm>()
 
-  const { query, pagination, resetPage } = usePagedQuery<AdminFeedbackView>({
-    key: [...adminKeys.feedback, { status, q }],
-    fetcher: ({ page, pageSize }) =>
-      adminService.feedback({ page, pageSize, status, q: q || undefined }),
-    totalLabel: (total) => `${formatNumber(total)} feedback`,
+  const { query, pagination, filters, setFilter, clearFilters } = usePagedQuery<
+    AdminFeedbackView,
+    (typeof FILTERS)[number]
+  >({
+    key: [...adminKeys.feedback],
+    filterNames: FILTERS,
+    fetcher: ({ page, pageSize, filters: f }) =>
+      adminService.feedback({
+        page,
+        pageSize,
+        status: (f.status ?? 'PENDING') as FeedbackStatus,
+        q: f.q,
+      }),
+    totalLabel: (total) => `${formatNumber(total)} phản hồi`,
   })
+
+  const [keyword, setKeyword] = useState(filters.q ?? '')
 
   const mutation = useApiMutation({
     mutationFn: (input: { id: string; body: ResolveForm }) =>
@@ -53,7 +64,9 @@ export default function FeedbackPage() {
       width: 180,
       render: (_, row) => (
         <span>
-          <div>{row.author?.name ?? '—'}</div>
+          <div>
+            <PartyLink id={row.author?.id} name={row.author?.name} />
+          </div>
           <small style={{ color: '#8c8c8c' }}>{row.author?.email ?? ''}</small>
         </span>
       ),
@@ -93,7 +106,6 @@ export default function FeedbackPage() {
             type="primary"
             onClick={() => {
               setTarget(row)
-              form.setFieldsValue({ decision: 'APPROVED', adminNote: '' })
             }}
           >
             Xử lý
@@ -107,27 +119,25 @@ export default function FeedbackPage() {
       <PageHeader title="Feedback" description="Ghi nhận lỗi, đề xuất tính năng và khiếu nại từ người dùng" />
 
       <Card style={{ marginBottom: 16 }}>
-        <Space wrap>
+        <Space wrap size={12}>
           <Select
-            allowClear
             placeholder="Trạng thái"
             style={{ width: 170 }}
-            value={status}
-            onChange={(value) => {
-              setStatus(value)
-              resetPage()
-            }}
-            options={STATUS_OPTIONS}
+            value={filters.status ?? 'PENDING'}
+            onChange={(value) => setFilter('status', value)}
+            options={statusOptions(FEEDBACK_STATUSES)}
           />
           <Input.Search
             allowClear
             placeholder="Tiêu đề hoặc nội dung"
             style={{ width: 280 }}
-            onSearch={(value) => {
-              setQ(value.trim())
-              resetPage()
-            }}
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            onSearch={(value) => setFilter('q', value.trim() || null)}
           />
+          <Button type="text" onClick={clearFilters}>
+            Xoá bộ lọc
+          </Button>
         </Space>
       </Card>
 
@@ -156,7 +166,12 @@ export default function FeedbackPage() {
           })
         }}
       >
-        <Form<ResolveForm> form={form} layout="vertical" preserve={false}>
+        <Form<ResolveForm>
+          form={form}
+          layout="vertical"
+          preserve={false}
+          initialValues={{ decision: 'APPROVED', adminNote: '' }}
+        >
           <Form.Item name="decision" label="Quyết định" rules={[{ required: true }]}>
             <Radio.Group
               options={[

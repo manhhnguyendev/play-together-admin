@@ -59,7 +59,7 @@ export default function LoginPage() {
             label="Email"
             rules={[{ required: true, message: 'Nhập email quản trị' }]}
           >
-            <Input prefix={<MailOutlined />} placeholder="admin@playtogether.local" autoComplete="username" />
+            <Input prefix={<MailOutlined />} placeholder="Email quản trị của bạn" autoComplete="username" />
           </Form.Item>
           <Form.Item
             name="password"
@@ -72,10 +72,6 @@ export default function LoginPage() {
             Đăng nhập
           </Button>
         </Form>
-
-        <Typography.Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0, fontSize: 12 }}>
-          Tài khoản demo: <code>admin@playtogether.local</code> / <code>Admin@12345</code>
-        </Typography.Paragraph>
       </Card>
     </div>
   )

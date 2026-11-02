@@ -10,6 +10,18 @@ export const adminKeys = {
   configs: ['admin', 'configs'],
 } as const
 
+export const opsKeys = {
+  auditLogs: ['ops', 'audit-logs'],
+  orders: ['ops', 'orders'],
+  order: (orderId: string) => ['ops', 'order', orderId],
+  user: (userId: string) => ['ops', 'user', userId],
+  kpis: ['ops', 'kpis'],
+  ledger: ['ops', 'ledger'],
+  wallets: ['ops', 'wallets'],
+  deposits: ['ops', 'deposits'],
+  escrows: ['ops', 'escrows'],
+} as const
+
 export const catalogKeys = {
   games: ['catalog', 'games'],
   game: (gameId: string) => ['catalog', 'game', gameId],

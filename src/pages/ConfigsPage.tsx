@@ -7,7 +7,6 @@ import {
   Input,
   InputNumber,
   Modal,
-  Popconfirm,
   Space,
   Table,
   Tag,
@@ -18,6 +17,7 @@ import { useState } from 'react'
 import { adminService } from '@/api/admin'
 import { adminKeys, publicConfigKey } from '@/api/keys'
 import type { ResolvedConfig } from '@/api/types'
+import { ConfirmReasonModal } from '@/components/ConfirmReasonModal'
 import { PageHeader } from '@/components/PageHeader'
 import { QueryError } from '@/components/QueryError'
 import { useApiMutation } from '@/hooks/useApiMutation'
@@ -28,6 +28,7 @@ interface ConfigForm {
   title: string
   value: number
   description?: string
+  reason?: string
 }
 
 interface CreateConfigForm extends ConfigForm {
@@ -40,6 +41,8 @@ const CONFIG_KEYS = [adminKeys.configs, publicConfigKey]
 export default function ConfigsPage() {
   const [editing, setEditing] = useState<ResolvedConfig | null>(null)
   const [creating, setCreating] = useState(false)
+  const [prefill, setPrefill] = useState<ResolvedConfig | null>(null)
+  const [deleting, setDeleting] = useState<ResolvedConfig | null>(null)
   const [editForm] = Form.useForm<ConfigForm>()
   const [createForm] = Form.useForm<CreateConfigForm>()
 
@@ -51,6 +54,7 @@ export default function ConfigsPage() {
         title: input.values.title.trim(),
         value: input.values.value,
         description: trimOrUndefined(input.values.description),
+        reason: trimOrUndefined(input.values.reason),
       }),
     successMessage: 'Đã cập nhật cấu hình',
     invalidate: CONFIG_KEYS,
@@ -65,6 +69,7 @@ export default function ConfigsPage() {
         title: values.title.trim(),
         value: values.value,
         description: trimOrUndefined(values.description),
+        reason: trimOrUndefined(values.reason),
       }),
     successMessage: 'Đã thêm cấu hình',
     invalidate: CONFIG_KEYS,
@@ -72,26 +77,16 @@ export default function ConfigsPage() {
   })
 
   const deleteMutation = useApiMutation({
-    mutationFn: (id: string) => adminService.deleteConfig(id),
+    mutationFn: (input: { id: string; reason: string }) =>
+      adminService.deleteConfig(input.id, { reason: input.reason }),
     successMessage: 'Đã xoá cấu hình',
     invalidate: CONFIG_KEYS,
+    onSuccess: () => setDeleting(null),
   })
 
-  const deletingId = deleteMutation.isPending ? deleteMutation.variables : undefined
-
   const startCreate = (row?: ResolvedConfig) => {
+    setPrefill(row ?? null)
     setCreating(true)
-    createForm.resetFields()
-    createForm.setFieldsValue(
-      row
-        ? {
-            key: row.key,
-            title: row.title,
-            value: row.value,
-            description: row.description ?? '',
-          }
-        : { value: 0 },
-    )
   }
 
   const columns: TableProps<ResolvedConfig>['columns'] = [
@@ -142,25 +137,16 @@ export default function ConfigsPage() {
               icon={<EditOutlined />}
               onClick={() => {
                 setEditing(row)
-                editForm.setFieldsValue({
-                  title: row.title,
-                  value: row.value,
-                  description: row.description ?? '',
-                })
               }}
             />
-            <Popconfirm
-              title="Xoá cấu hình này?"
-              description="Cấu hình lõi không thể xoá, chỉ có thể sửa."
-              okText="Xoá"
-              cancelText="Huỷ"
-              okButtonProps={{ danger: true }}
-              onConfirm={() => deleteMutation.mutate(row.id as string)}
+            <Button
+              size="small"
+              danger
+              loading={deleteMutation.isPending && deleteMutation.variables?.id === row.id}
+              onClick={() => setDeleting(row)}
             >
-              <Button size="small" danger loading={deletingId === row.id}>
-                Xoá
-              </Button>
-            </Popconfirm>
+              Xoá
+            </Button>
           </Space>
         ) : (
           <Button size="small" icon={<PlusOutlined />} onClick={() => startCreate(row)}>
@@ -220,7 +206,16 @@ export default function ConfigsPage() {
         confirmLoading={updateMutation.isPending}
         destroyOnHidden
       >
-        <Form<ConfigForm> form={editForm} layout="vertical" preserve={false}>
+        <Form<ConfigForm>
+          form={editForm}
+          layout="vertical"
+          preserve={false}
+          initialValues={
+            editing
+              ? { title: editing.title, value: editing.value, description: editing.description ?? '', reason: '' }
+              : undefined
+          }
+        >
           <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, min: 2, max: 150 }]}>
             <Input maxLength={150} />
           </Form.Item>
@@ -229,6 +224,14 @@ export default function ConfigsPage() {
           </Form.Item>
           <Form.Item name="description" label="Mô tả">
             <Input.TextArea rows={3} maxLength={1000} />
+          </Form.Item>
+          <Form.Item
+            name="reason"
+            label="Lý do thay đổi"
+            rules={[{ max: 500, message: 'Tối đa 500 ký tự' }]}
+            extra="Được ghi vào nhật ký thao tác cùng giá trị mới."
+          >
+            <Input.TextArea rows={2} maxLength={500} showCount placeholder="Cần tăng cửa sổ khiếu nại lên 48 giờ" />
           </Form.Item>
         </Form>
       </Modal>
@@ -243,7 +246,21 @@ export default function ConfigsPage() {
         confirmLoading={createMutation.isPending}
         destroyOnHidden
       >
-        <Form<CreateConfigForm> form={createForm} layout="vertical" preserve={false}>
+        <Form<CreateConfigForm>
+          form={createForm}
+          layout="vertical"
+          preserve={false}
+          initialValues={
+            prefill
+              ? {
+                  key: prefill.key,
+                  title: prefill.title,
+                  value: prefill.value,
+                  description: prefill.description ?? '',
+                }
+              : { value: 0 }
+          }
+        >
           <Form.Item
             name="key"
             label="Khoá"
@@ -275,8 +292,31 @@ export default function ConfigsPage() {
           <Form.Item name="description" label="Mô tả">
             <Input.TextArea rows={3} maxLength={1000} />
           </Form.Item>
+          <Form.Item
+            name="reason"
+            label="Lý do thêm"
+            rules={[{ max: 500, message: 'Tối đa 500 ký tự' }]}
+            extra="Được ghi vào nhật ký thao tác cùng giá trị mới."
+          >
+            <Input.TextArea rows={2} maxLength={500} showCount placeholder="Thêm ngưỡng nhắc đơn cho đội vận hành" />
+          </Form.Item>
         </Form>
       </Modal>
+
+      <ConfirmReasonModal
+        open={deleting !== null}
+        title={`Xoá cấu hình ${deleting?.key ?? ''}?`}
+        description="Cấu hình lõi không thể xoá, chỉ có thể sửa. Giá trị mặc định của hệ thống sẽ được dùng lại."
+        okText="Xoá cấu hình"
+        reasonLabel="Lý do xoá"
+        danger
+        loading={deleteMutation.isPending}
+        placeholder="Không còn dùng sau khi đổi luồng nhắc đơn"
+        onCancel={() => setDeleting(null)}
+        onConfirm={(reason) => {
+          if (deleting?.id) deleteMutation.mutate({ id: deleting.id, reason })
+        }}
+      />
     </>
   )
 }

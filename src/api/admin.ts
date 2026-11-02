@@ -36,6 +36,17 @@ import {
   systemConfigAdminControllerRemove,
   systemConfigAdminControllerUpdate,
 } from './generated/endpoints/admin-configs/admin-configs'
+import {
+  adminOpsControllerAuditLogs,
+  adminOpsControllerDeposits,
+  adminOpsControllerEscrows,
+  adminOpsControllerKpis,
+  adminOpsControllerLedger,
+  adminOpsControllerOrderDetail,
+  adminOpsControllerOrders,
+  adminOpsControllerUserDossier,
+  adminOpsControllerWallets,
+} from './generated/endpoints/admin-ops/admin-ops'
 import { authControllerLogin, authControllerLogout } from './generated/endpoints/auth/auth'
 import {
   catalogControllerGetGame,
@@ -110,4 +121,20 @@ export const catalogService = {
 
 export const configService = {
   public: systemConfigControllerPublicConfigs,
+}
+
+/**
+ * Read side of the console. The tiers here are the ones the API enforces, so a
+ * page built on this service can never offer an action the token would reject.
+ */
+export const opsService = {
+  auditLogs: adminOpsControllerAuditLogs,
+  orders: adminOpsControllerOrders,
+  order: adminOpsControllerOrderDetail,
+  user: adminOpsControllerUserDossier,
+  kpis: adminOpsControllerKpis,
+  ledger: adminOpsControllerLedger,
+  wallets: adminOpsControllerWallets,
+  deposits: adminOpsControllerDeposits,
+  escrows: adminOpsControllerEscrows,
 }

@@ -8,6 +8,7 @@
 import type {
   CreateConfigDto,
   ResolvedConfigDto,
+  SystemConfigAdminControllerRemoveParams,
   UpdateConfigDto
 } from '../../models';
 
@@ -58,9 +59,11 @@ export const systemConfigAdminControllerUpdate = (
  */
 export const systemConfigAdminControllerRemove = (
     id: string,
+    params?: SystemConfigAdminControllerRemoveParams,
  ) => {
       return customInstance<void>(
-      {url: `/api/v2/admin/configs/${id}`, method: 'DELETE'
+      {url: `/api/v2/admin/configs/${id}`, method: 'DELETE',
+        params
     },
       );
     }

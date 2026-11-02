@@ -24,4 +24,6 @@ export interface CreateOrderDto {
      * @maxItems 6
      */
   gameIds: string[];
+  /** Booked start of the session in the app timezone. Omit to hire immediately, which starts the session when the player accepts. */
+  startsAt?: string;
 }

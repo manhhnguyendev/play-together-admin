@@ -11,18 +11,20 @@ import {
   type WithdrawalView,
 } from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
+import { PartyLink } from '@/components/PartyLink'
 import { QueryError } from '@/components/QueryError'
 import { StatusTag } from '@/components/StatusTag'
 import { useApiMutation } from '@/hooks/useApiMutation'
 import { usePagedQuery } from '@/hooks/usePagedQuery'
 import { formatDateTime, formatMoney, formatNumber } from '@/lib/format'
+import { statusOptions } from '@/lib/labels'
 
 interface ResolveForm {
   decision: 'PAID' | 'REJECTED'
-  note?: string
+  note: string
 }
 
-const STATUS_OPTIONS = WITHDRAWAL_STATUSES.map((value) => ({ value, label: value }))
+const STATUS_OPTIONS = statusOptions(WITHDRAWAL_STATUSES)
 
 export default function WithdrawalsPage() {
   return (
@@ -55,7 +57,7 @@ function UserWithdrawals() {
     mutationFn: (input: { id: string; body: ResolveForm }) =>
       adminService.resolveWithdrawal(input.id, {
         status: input.body.decision,
-        note: input.body.note,
+        note: input.body.note.trim(),
       }),
     successMessage: 'Đã xử lý yêu cầu',
     invalidate: [adminKeys.withdrawals, adminKeys.stats],
@@ -68,7 +70,9 @@ function UserWithdrawals() {
       dataIndex: ['user', 'name'],
       render: (_, row) => (
         <span>
-          <div>{row.user.name}</div>
+          <div>
+            <PartyLink id={row.user.id} name={row.user.name} />
+          </div>
           <small style={{ color: '#8c8c8c' }}>{row.user.email}</small>
         </span>
       ),
@@ -100,7 +104,6 @@ function UserWithdrawals() {
             type="primary"
             onClick={() => {
               setTarget(row)
-              form.setFieldsValue({ decision: 'PAID', note: '' })
             }}
           >
             Xử lý
@@ -169,7 +172,7 @@ function CharityWithdrawals() {
     mutationFn: (input: { id: string; body: ResolveForm }) =>
       adminService.resolveCharityWithdrawal(input.id, {
         decision: input.body.decision,
-        note: input.body.note,
+        note: input.body.note.trim(),
       }),
     successMessage: 'Đã xử lý yêu cầu',
     invalidate: [adminKeys.charityWithdrawals, adminKeys.stats],
@@ -205,7 +208,6 @@ function CharityWithdrawals() {
             type="primary"
             onClick={() => {
               setTarget(row)
-              form.setFieldsValue({ decision: 'PAID', note: '' })
             }}
           >
             Xử lý <ArrowRightOutlined />
@@ -287,7 +289,7 @@ function ResolveModal({
         void form.validateFields().then(onOk)
       }}
     >
-      <Form<ResolveForm> form={form} layout="vertical" preserve={false}>
+      <Form<ResolveForm> form={form} layout="vertical" preserve={false} initialValues={{ decision: 'PAID', note: '' }}>
         {amount !== undefined ? (
           <Form.Item label="Số tiền">
             <strong>{formatMoney(amount)}</strong>
@@ -301,8 +303,15 @@ function ResolveModal({
             ]}
           />
         </Form.Item>
-        <Form.Item name="note" label="Ghi chú">
-          <Input.TextArea rows={3} maxLength={255} />
+        <Form.Item
+          name="note"
+          label="Ghi chú"
+          rules={[
+            { required: true, min: 3, max: 255, message: 'Cần ghi số tham chiếu hoặc lý do, tối thiểu 3 ký tự' },
+          ]}
+          extra="Quyết định chi tiền luôn cần lý do để đối soát và lưu vào nhật ký thao tác."
+        >
+          <Input.TextArea rows={3} maxLength={255} showCount placeholder="Ví dụ: đã chuyển khoản MCV 20261101ABC" />
         </Form.Item>
       </Form>
     </Modal>

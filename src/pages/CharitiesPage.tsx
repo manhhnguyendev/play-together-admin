@@ -101,15 +101,6 @@ export default function CharitiesPage() {
 
   const openEdit = (charity: CharityView) => {
     setEditing(charity)
-    editForm.setFieldsValue({
-      organizationName: charity.organizationName,
-      information: charity.information ?? '',
-      address: charity.address ?? '',
-      contactEmail: charity.email ?? '',
-      phone: charity.phone ?? '',
-      avatarUrl: charity.avatarUrl ?? '',
-      isActive: charity.isActive,
-    })
   }
 
   const openCreate = () => {
@@ -299,7 +290,24 @@ export default function CharitiesPage() {
         destroyOnHidden
         width={560}
       >
-        <Form<EditCharityForm> form={editForm} layout="vertical" preserve={false}>
+        <Form<EditCharityForm>
+          form={editForm}
+          layout="vertical"
+          preserve={false}
+          initialValues={
+            editing
+              ? {
+                  organizationName: editing.organizationName,
+                  information: editing.information ?? '',
+                  address: editing.address ?? '',
+                  contactEmail: editing.email ?? '',
+                  phone: editing.phone ?? '',
+                  avatarUrl: editing.avatarUrl ?? '',
+                  isActive: editing.isActive,
+                }
+              : undefined
+          }
+        >
           <CharityProfileFields />
           <Form.Item name="isActive" label="Đang hoạt động" valuePropName="checked">
             <Switch />
