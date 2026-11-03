@@ -121,10 +121,12 @@ export const labelOf = (labels: Record<string, string>, value: string | null | u
   value === null || value === undefined ? '—' : (labels[value] ?? value)
 
 /**
- * Basis points are what the API stores; operators read percentages. One decimal
- * is enough for a fee share and keeps `1500` from looking like a money amount.
+ * Basis points are what the API stores; operators read percentages. `fee_bps` is
+ * any integer 0..5000, and an integer divided by 100 never needs more than two
+ * decimals — so two is exact, while one would round a 123 bps fee to "1,2%" and
+ * leave the operator reconciling a percentage the money does not add up to.
  */
-export const formatBasisPoints = (value: number): string => `${(value / 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`
+export const formatBasisPoints = (value: number): string => `${(value / 100).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}%`
 
 export interface StatusMeta {
   label: string
