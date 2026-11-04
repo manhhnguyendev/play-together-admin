@@ -27,9 +27,17 @@ The API must be running (see `play-together-be`). Seeded admin account:
 npm run dev           # dev server on port 5174
 npm run build         # typecheck (tsc -b) + production build
 npm run lint          # oxlint
+npm test              # vitest run (CI runs it)
+npm run test:watch    # vitest in watch mode
 npm run preview       # serve the production build
 npm run api:generate  # regenerate src/api/generated from the API OpenAPI document
 ```
+
+Two specs cover the parts a wrong answer would silently corrupt: the RBAC matrix in
+`src/auth/permissions.ts` (which role may reach which action) and the label formatters in
+`src/lib/labels.ts` — including basis-point fees, where rounding to one decimal made a "123 bps"
+fee read as 1,2% and left operators reconciling money that did not add up. They run on Node, so
+no AntD component is rendered; the pages themselves still need a browser pass.
 
 ## API client generation
 
